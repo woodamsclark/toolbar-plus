@@ -2,7 +2,7 @@
 
 A mobile-first Obsidian toolbar that detaches into an eight-direction gesture launcher.
 
-Current local build: **0.1.15** for Obsidian 1.13.7 and later. The tactile-control modal edits commands only and separates the Docked and Floating layouts into two tabs. General behavior and positioning live in Obsidian's compact toolbar+ settings page. The docked toolbar mirrors Obsidian's native mobile layout: commands sit in a black capsule and the tactile control occupies a separate circular button at the right. While docked, toolbar+ is hosted directly inside Obsidian's native mobile-toolbar container, so Obsidian owns its keyboard placement and animation. Floating mode moves the same control back into toolbar+'s independent overlay while keeping Obsidian's original mobile toolbar suppressed. A downward swipe on the docked tactile control hides the keyboard directly. Holding it detaches the control without showing a drop target; pointer tracking remains active while the control changes hosts. The docking target appears only when moving an already-floating control and temporarily uses Obsidian's keyboard-aware toolbar position. Mobile command-registry and browser API differences remain guarded, unreadable synced settings fall back to defaults, and the bundle targets ES2018.
+Current local build: **0.1.16** for Obsidian 1.13.7 and later. The tactile-control modal edits commands only and separates the Docked and Floating layouts into two tabs. General behavior and positioning live in Obsidian's compact toolbar+ settings page. The docked toolbar mirrors Obsidian's native mobile layout: commands sit in a black capsule and the tactile control occupies a separate circular button at the right. While docked, toolbar+ is hosted directly inside Obsidian's native mobile-toolbar container, so Obsidian owns its keyboard placement and animation. Floating mode moves the same control back into toolbar+'s independent overlay while keeping Obsidian's original mobile toolbar suppressed. A downward swipe on the docked tactile control hides the keyboard directly. Holding it detaches the control without showing a drop target; pointer tracking remains active while the control changes hosts. The docking target appears only when moving an already-floating control and temporarily uses Obsidian's keyboard-aware toolbar position. Mobile command-registry and browser API differences remain guarded, unreadable synced settings fall back to defaults, and the bundle targets ES2018.
 
 ## Start using it
 
@@ -23,9 +23,9 @@ The Command Palette also offers **toolbar+: Configure toolbar and gestures**, **
 
 | Northwest   | North                  | Northeast       |
 | ----------- | ---------------------- | --------------- |
-| Undo        | Heading menu           | Redo            |
-| Outdent     | Handle / configuration | Indent          |
-| Insert link | Toggle checkbox        | Command palette |
+| Undo        | Command palette        | Redo            |
+| Previous tab| Handle / configuration | Next tab        |
+| Copy        | Toggle keyboard        | Paste           |
 
 Commands use Obsidian command IDs, including commands from enabled community plugins. A command that has been removed, disabled, or is unavailable in the current context produces a notice. toolbar+ does not reimplement editor commands.
 
@@ -67,3 +67,7 @@ Contextual layouts, multiple profiles, nested gestures, and adaptive suggestions
 ## Privacy
 
 No network requests, telemetry, accounts, or external services. Commands you choose may have their own effects through their providing plugins. There is no idle polling or continuous animation loop.
+
+## License
+
+toolbar+ is licensed under the [Mozilla Public License 2.0](LICENSE).
