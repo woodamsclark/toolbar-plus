@@ -16,11 +16,10 @@ The Command Palette also offers **toolbar+: Configure toolbar and gestures**, **
 
 These are the eight-direction gesture bindings used for new installations. Existing installations keep their saved bindings.
 
-| Northwest (↖) | North (↑)              | Northeast (↗) |
-| -------------- | ---------------------- | -------------- |
-| Undo           | Command palette        | Redo           |
-| Previous tab   | Handle / configuration | Next tab       |
-| Copy           | Toggle keyboard        | Paste          |
+| ↖ Undo         | ↑ Command palette    | ↗ Redo         |
+| -------------- | -------------------- | -------------- |
+| ← Previous tab | • Handle / configure | → Next tab     |
+| ↙ Copy         | ↓ Toggle keyboard    | ↘ Paste        |
 
 Commands use Obsidian command IDs, including commands from enabled community plugins. A command that has been removed, disabled, or is unavailable in the current context produces a notice. toolbar+ does not reimplement editor commands.
 
