@@ -1,0 +1,9 @@
+{
+  "id": "toolbar-plus",
+  "name": "toolbar+",
+  "version": "0.1.15",
+  "minAppVersion": "1.13.7",
+  "description": "A configurable mobile toolbar that detaches into an eight-direction gesture launcher.",
+  "author": "Woody",
+  "isDesktopOnly": false
+}
