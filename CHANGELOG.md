@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.16 — floating gesture defaults
+
+- Set the eight floating gesture defaults to the current toolbar+ layout: undo, command palette, redo, previous tab, next tab, copy, keyboard toggle, and paste.
+- Keep the docked toolbar defaults independent from the floating gesture layout.
+
 ## 0.1.15 — compact settings
 
 - Replace oversized mobile settings cards with a compact, flat settings list.

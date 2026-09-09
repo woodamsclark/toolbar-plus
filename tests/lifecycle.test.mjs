@@ -236,7 +236,7 @@ test("immediate floating swipe executes once; returning to center cancels", asyn
   h.event("pointerdown");
   h.event("pointermove", 150, 100);
   h.event("pointerup", 150, 100);
-  assert.deepEqual(h.calls, ["editor:indent-list"]);
+  assert.deepEqual(h.calls, ["workspace:next-tab"]);
   h.event("pointerdown");
   h.event("pointermove", 60, 60);
   h.event("pointermove", 100, 100);
@@ -618,7 +618,7 @@ test("pointer capture failure and denied vibration cannot leave a stuck interact
   h.event("pointerdown");
   h.event("pointermove", 150, 100);
   h.event("pointerup", 150, 100);
-  assert.deepEqual(h.calls, ["editor:indent-list"]);
+  assert.deepEqual(h.calls, ["workspace:next-tab"]);
   assert.equal(h.p.interaction, undefined);
   h.end();
 });

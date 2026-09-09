@@ -42,28 +42,28 @@ var binding = (id, icon) => ({ id, icon });
 function defaults() {
   const gestures = {
     nw: binding("editor:undo", "undo-2"),
-    n: binding("editor:set-heading", "heading"),
+    n: binding("command-palette:open", "lucide-terminal-square"),
     ne: binding("editor:redo", "redo-2"),
-    w: binding("editor:unindent-list", "outdent"),
-    e: binding("editor:indent-list", "indent"),
-    sw: binding("editor:insert-link", "link"),
-    s: binding("editor:toggle-checklist-status", "list-todo"),
-    se: binding("command-palette:open", "terminal")
+    w: binding("workspace:goto-last-tab", "outdent"),
+    e: binding("workspace:next-tab", "lucide-arrow-right"),
+    sw: binding("editor:copy", "lucide-copy"),
+    s: binding("editor:toggle-keyboard", "keyboard-toggle"),
+    se: binding("editor:paste", "lucide-clipboard-type")
   };
   return {
     version: 1,
     mode: "docked",
     position: { x: 0.85, y: 0.65 },
     docked: [
-      gestures.nw,
-      gestures.ne,
-      gestures.sw,
-      gestures.n,
-      gestures.s,
-      gestures.e,
-      gestures.w,
-      gestures.se
-    ].map((b) => ({ ...b })),
+      binding("editor:undo", "undo-2"),
+      binding("editor:redo", "redo-2"),
+      binding("editor:insert-link", "link"),
+      binding("editor:set-heading", "heading"),
+      binding("editor:toggle-checklist-status", "list-todo"),
+      binding("editor:indent-list", "indent"),
+      binding("editor:unindent-list", "outdent"),
+      binding("command-palette:open", "terminal")
+    ],
     gestures,
     haptics: true,
     showGrid: true,

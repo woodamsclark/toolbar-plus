@@ -16,6 +16,27 @@ test("eight sectors and center cancellation", () => {
   assert.equal(directionAt(10, 10, 28), null);
   assert.equal(directionAt(0, 0, 28), null);
 });
+test("floating gesture defaults match the shipped toolbar+ layout", () => {
+  const { gestures } = defaults();
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(gestures).map(([direction, binding]) => [
+        direction,
+        binding.id,
+      ]),
+    ),
+    {
+      nw: "editor:undo",
+      n: "command-palette:open",
+      ne: "editor:redo",
+      w: "workspace:goto-last-tab",
+      e: "workspace:next-tab",
+      sw: "editor:copy",
+      s: "editor:toggle-keyboard",
+      se: "editor:paste",
+    },
+  );
+});
 test("malformed settings recover while intentional empty bindings persist", () => {
   assert.deepEqual(normalize(null), defaults());
   const config = normalize({
