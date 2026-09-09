@@ -19,13 +19,15 @@ On mobile, open a Markdown note to see the docked toolbar. On desktop, open **Se
 
 The Command Palette also offers **toolbar+: Configure toolbar and gestures**, **Dock toolbar**, and **Float gesture control**. These provide recovery controls if you need to reset the mode.
 
-## Defaults
+## Floating gesture defaults
 
-| Northwest   | North                  | Northeast       |
-| ----------- | ---------------------- | --------------- |
-| Undo        | Command palette        | Redo            |
-| Previous tab| Handle / configuration | Next tab        |
-| Copy        | Toggle keyboard        | Paste           |
+These are the eight-direction gesture bindings used for new installations. Existing installations keep their saved bindings.
+
+| Northwest (↖) | North (↑)              | Northeast (↗) |
+| -------------- | ---------------------- | -------------- |
+| Undo           | Command palette        | Redo           |
+| Previous tab   | Handle / configuration | Next tab       |
+| Copy           | Toggle keyboard        | Paste          |
 
 Commands use Obsidian command IDs, including commands from enabled community plugins. A command that has been removed, disabled, or is unavailable in the current context produces a notice. toolbar+ does not reimplement editor commands.
 
