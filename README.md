@@ -10,7 +10,7 @@ On mobile, open a Markdown note to see the docked toolbar. On desktop, open **Se
 - **Hold while floating and drag to the bottom target:** release to dock the control.
 - **Escape, an interrupted touch, or changing the active pane:** cancel the current interaction.
 
-The Command Palette also offers **toolbar+: Configure toolbar and gestures**, **Dock toolbar**, and **Float gesture control**. These provide recovery controls if you need to reset the mode.
+The Command Palette also offers **toolbar+: Configure toolbar and gestures**, **Insert alias**, **Dock toolbar**, and **Float gesture control**. Select text and run **Insert alias** to create `[[|selected text]]`; choose a note from Obsidian's autocomplete to finish `[[Note title|selected text]]`. The same command can be assigned to a docked button or floating gesture.
 
 ## Floating gesture defaults
 
