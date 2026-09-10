@@ -26,6 +26,65 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 
+// src/insert-alias.ts
+var INVALID_ALIAS_MESSAGE = "toolbar+: an alias must be a single line and cannot contain ]].";
+var InsertAliasController = class {
+  constructor() {
+    this.pending = /* @__PURE__ */ new WeakMap();
+  }
+  insert(editor) {
+    const alias = editor.getSelection();
+    if (alias.includes("\n") || alias.includes("\r") || alias.includes("]]")) {
+      return false;
+    }
+    const start = editor.getCursor("from");
+    editor.replaceSelection(`[[|${alias}]]`);
+    editor.setCursor({ line: start.line, ch: start.ch + 2 });
+    this.pending.set(editor, { alias, start });
+    return true;
+  }
+  onEditorChange(editor) {
+    const pending = this.pending.get(editor);
+    if (!pending) return;
+    if (pending.start.line >= editor.lineCount()) {
+      this.pending.delete(editor);
+      return;
+    }
+    const { alias, start } = pending;
+    const remainder = editor.getLine(start.line).slice(start.ch);
+    const link = remainder.match(/^\[\[([^\n]*?)\]\]/);
+    if (!link) {
+      this.pending.delete(editor);
+      return;
+    }
+    const body = link[1];
+    const aliasSuffix = `|${alias}`;
+    const cursor = editor.getCursor();
+    if (body.endsWith(aliasSuffix)) {
+      const targetLength = body.length - aliasSuffix.length;
+      const targetStart = start.ch + 2;
+      const targetEnd = targetStart + targetLength;
+      if (cursor.line !== start.line || cursor.ch < targetStart || cursor.ch > targetEnd) {
+        this.pending.delete(editor);
+      }
+      return;
+    }
+    const originalEnd = start.ch + link[0].length;
+    const completedTargetEnd = start.ch + 2 + body.length;
+    if (body.length === 0 || body.includes("|") || cursor.line !== start.line || cursor.ch < completedTargetEnd) {
+      this.pending.delete(editor);
+      return;
+    }
+    this.pending.delete(editor);
+    const closingBrackets = { line: start.line, ch: originalEnd - 2 };
+    editor.replaceRange(aliasSuffix, closingBrackets);
+    editor.setCursor({
+      line: start.line,
+      ch: originalEnd + aliasSuffix.length
+    });
+  }
+};
+
 // src/model.ts
 var directions = ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
 var arrows = {
@@ -221,6 +280,7 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     this.disposed = false;
     this.ready = false;
     this.ui = new import_obsidian.Component();
+    this.insertAlias = new InsertAliasController();
     this.modals = /* @__PURE__ */ new Set();
     this.pickers = /* @__PURE__ */ new Set();
     this.suspended = 0;
@@ -262,6 +322,15 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       callback: () => this.configure()
     });
     this.addCommand({
+      id: "insert-alias",
+      name: "Insert alias",
+      editorCallback: (editor) => {
+        if (!this.insertAlias.insert(editor)) {
+          new import_obsidian.Notice(INVALID_ALIAS_MESSAGE);
+        }
+      }
+    });
+    this.addCommand({
       id: "dock",
       name: "Dock toolbar",
       callback: () => this.setMode("docked")
@@ -271,6 +340,12 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       name: "Float gesture control",
       callback: () => this.setMode("floating")
     });
+    this.registerEvent(
+      this.app.workspace.on(
+        "editor-change",
+        (editor) => this.insertAlias.onEditorChange(editor)
+      )
+    );
     this.app.workspace.onLayoutReady(() => {
       if (this.disposed) return;
       try {

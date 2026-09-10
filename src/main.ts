@@ -13,6 +13,11 @@ import {
   Setting,
   setIcon,
 } from "obsidian";
+import type { Editor } from "obsidian";
+import {
+  InsertAliasController,
+  INVALID_ALIAS_MESSAGE,
+} from "./insert-alias";
 import {
   arrows,
   Binding,
@@ -148,6 +153,7 @@ export default class ToolbarPlus extends Plugin {
   private disposed = false;
   private ready = false;
   private readonly ui = new Component();
+  private readonly insertAlias = new InsertAliasController();
   private modals = new Set<Modal>();
   private pickers = new Set<Modal>();
   private suspended = 0;
@@ -194,6 +200,15 @@ export default class ToolbarPlus extends Plugin {
       callback: () => this.configure(),
     });
     this.addCommand({
+      id: "insert-alias",
+      name: "Insert alias",
+      editorCallback: (editor: Editor) => {
+        if (!this.insertAlias.insert(editor)) {
+          new Notice(INVALID_ALIAS_MESSAGE);
+        }
+      },
+    });
+    this.addCommand({
       id: "dock",
       name: "Dock toolbar",
       callback: () => this.setMode("docked"),
@@ -203,6 +218,11 @@ export default class ToolbarPlus extends Plugin {
       name: "Float gesture control",
       callback: () => this.setMode("floating"),
     });
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor) =>
+        this.insertAlias.onEditorChange(editor),
+      ),
+    );
     this.app.workspace.onLayoutReady(() => {
       if (this.disposed) return;
       try {
