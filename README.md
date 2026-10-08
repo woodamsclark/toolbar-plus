@@ -16,6 +16,12 @@ Open a Markdown note and bring up the keyboard to see the toolbar.
 - **Flick the floating handle in a direction** and release to run its command. Return to the center before releasing to cancel.
 - **Hold the floating handle, then drag to the bottom target** and release to dock it again.
 
+## Customize commands
+
+Add, remove, reorder, and change docked toolbar commands, or assign a command to each floating gesture. Choose any available Obsidian or community-plugin command.
+
+<img src="docs/media/toolbar-plus-docked-commands.jpg" alt="Toolbar+ docked command editor with controls to change, reorder, remove, and add commands." width="280"> <img src="docs/media/toolbar-plus-floating-commands.jpg" alt="Toolbar+ floating gesture editor with a customizable command for each of the eight directions." width="280">
+
 ## Default floating gestures
 
 | ↖ Undo         | ↑ Command palette    | ↗ Redo     |
@@ -23,7 +29,7 @@ Open a Markdown note and bring up the keyboard to see the toolbar.
 | ← Previous tab | • Handle / configure | → Next tab |
 | ↙ Copy         | ↓ Toggle keyboard    | ↘ Paste    |
 
-Choose any available Obsidian or community-plugin command. **Settings → toolbar+** controls the gesture grid, vibration, hold duration, and flick distance. Enable **Show on desktop** there to use it with a mouse or trackpad.
+**Settings → toolbar+** controls the gesture grid, vibration, hold duration, and flick distance. Enable **Show on desktop** there to use it with a mouse or trackpad.
 
 The Command Palette also offers **Dock toolbar**, **Float gesture control**, and **Insert alias**, which wraps selected text in `[[|selected text]]` so you can choose the linked note.
 
