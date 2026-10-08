@@ -1,5 +1,9 @@
 # toolbar+
 
+A customizable mobile toolbar that transforms into a floating eight-direction gesture pad for your favorite commands.
+
+<img src="docs/media/toolbar-plus-mobile.png" alt="Toolbar+ docked at the bottom of an Obsidian note on iPhone." width="320">
+
 ## Start using it
 On mobile, open a Markdown note to see the docked toolbar. On desktop, open **Settings → toolbar+** and enable **Show on desktop** to try it with a mouse or trackpad.
 
