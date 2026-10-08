@@ -4,7 +4,7 @@ Audit date: 2026-10-08
 
 ## Result
 
-The local 0.1.20 build addresses the supplied Obsidian checker feedback. The source includes the released 0.1.19 keyboard lifecycle and hidden-docking fixes, which were missing from the live source while its generated bundle was current. The public repository and 0.1.19 release were inspected on 2026-10-08. Version 0.1.20 has not been published; its GitHub Actions workflow has not run, so attestations remain unverified.
+The local 0.1.20 build addresses the supplied Obsidian checker feedback. The source includes the released 0.1.19 keyboard lifecycle and hidden-docking fixes, which were missing from the live source while its generated bundle was current. The public repository and 0.1.19 release were inspected on 2026-10-08. Version 0.1.20 is published. GitHub Actions run [37836603899](https://github.com/woodamsclark/toolbar-plus/actions/runs/37836603899) passed the build, tests, attestations, and publication. Downloaded release assets exactly match the verified local build, and `gh attestation verify` succeeded independently for all three assets.
 
 The existing 0.1.19 release still has the checker-reported ZIP and checksum attachments. The new workflow uploads only the three supported assets; it does not change historical releases.
 
@@ -34,7 +34,7 @@ The browser preview loads production styles and displays layout measurements aga
 ## Device acceptance status
 
 - Browser preview: checked at 390×844 in light and dark themes. The docked bar, command capsule, and handle measure 42px; the floating handle measures 48×48px, native toolbar rows are detached, and the fixture reports zero editor gap.
-- iPhone: the user reports that 0.1.20 still looks good, but observed the docked toolbar appearing before the keyboard finished rising. The user then requested a slide during opening. The rebuilt 0.1.20 now animates in the overlay and returns to native docking at completion; the user reports no change on iOS. Browser animation success did not establish that the real iOS event reaches the entrance gate. The on-device report identified the failed gate: the native host was absent during will-show and available by did-show, 378ms later. The corrected build starts its overlay slide without requiring that host and uses a 380ms approximation. The user confirmed on iPhone that the corrected slide works great. Temporary device-report support was removed before publication. The public 0.1.19 audit records earlier verification of keyboard-hidden docking.
+- iPhone: the user confirmed that the corrected docked keyboard slide works great. The entrance starts before Obsidian creates its native toolbar and uses a 380ms approximation, based on the observed opening interval. Temporary device-report support was removed before publication. Keyboard-hidden docking was verified previously in 0.1.19.
 - Android: untested; the earlier acceptance of this limitation does not establish device coverage for 0.1.20.
 
 ## Additional device checks
@@ -48,10 +48,8 @@ After the 0.1.20 runtime files finish syncing and the plugin is reloaded:
 - Disable/re-enable the plugin in both modes and confirm Obsidian's native toolbar is restored.
 - Change settings, reload the plugin, and restart Obsidian to verify persistence. Also test desktop with Show on desktop on/off.
 
-## Publication checklist
+## Publication verification
 
-The existing public repository is confirmed. After smoke-testing the new build, publish the final source and matching `0.1.20` tag. `.github/workflows/release.yml` validates the tag, installs locked dependencies, builds/tests/packages, attests `main.js`, `manifest.json`, and `styles.css`, then publishes only those assets. ZIPs, checksums, and audit documents stay local. The workflow syntax was parsed locally; execution and attestation verification require GitHub Actions.
+[Release 0.1.20](https://github.com/woodamsclark/toolbar-plus/releases/tag/0.1.20) contains only `main.js`, `manifest.json`, and `styles.css`. All three downloaded files exactly match the verified local build and passed GitHub attestation verification. The published tag is `a339021`; manual recovery of the release workflow ran from `6d7e4a0`, whose runtime source is identical. The initial tag push did not start a run; the user explicitly approved adding the manual trigger to finish publication without moving the tag.
 
-Verify the downloaded assets with `gh attestation verify <file> --repo woodamsclark/toolbar-plus`. Address Community directory review results after publishing if needed.
-
-The local ZIP is a sideload artifact, not a replacement for the individual GitHub release attachments. Existing 0.1.17 artifacts are retained as historical packages; they do not match the current source.
+The workflow validates the version tag, installs locked dependencies, builds/tests/packages, attests the three supported assets, and publishes them. ZIPs and checksums remain local. Historical release attachments are unchanged.
