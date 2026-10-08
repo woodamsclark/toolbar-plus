@@ -334,8 +334,9 @@ var _MobileToolbarHost = class _MobileToolbarHost {
     element.remove();
   }
   restoreDetachedElements() {
+    const nativeToolbarOpen = this.doc.body.classList.contains("mod-toolbar-open");
     for (const { element, parent, nextSibling } of this.detachedElements.slice().reverse()) {
-      if (!element.isConnected && parent.isConnected) {
+      if (nativeToolbarOpen && !element.isConnected && parent.isConnected) {
         parent.insertBefore(
           element,
           (nextSibling == null ? void 0 : nextSibling.parentNode) === parent ? nextSibling : null

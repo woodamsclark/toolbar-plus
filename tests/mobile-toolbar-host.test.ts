@@ -46,7 +46,7 @@ test("desired host state covers dock, float, movement, and unavailable hosts", (
 
 test("one host controller owns every bar and target transition", () => {
   const dom = new JSDOM(
-    '<body><div class="app-container"><main></main><div class="mobile-toolbar-spacer"></div><div class="mobile-toolbar"><button id="native"></button></div></div><div id="root"><div id="bar"></div><div id="target"></div></div></body>',
+    '<body class="mod-toolbar-open"><div class="app-container"><main></main><div class="mobile-toolbar-spacer"></div><div class="mobile-toolbar"><button id="native"></button></div></div><div id="root"><div id="bar"></div><div id="target"></div></div></body>',
   );
   const doc = dom.window.document;
   const root = doc.querySelector<HTMLElement>("#root")!;
@@ -126,4 +126,44 @@ test("one host controller owns every bar and target transition", () => {
   assert.equal(spacer.isConnected, true);
   assert.equal(root.dataset.tpHostState, undefined);
   dom.window.close();
+});
+
+test("closing the keyboard while floating does not resurrect the native row on dock or unload", () => {
+  for (const action of ["dock", "unload"] as const) {
+    const dom = new JSDOM(
+      '<body class="mod-toolbar-open"><main><div class="mobile-toolbar-spacer"></div><div class="mobile-toolbar"><button id="native-command"></button></div></main><div id="root"><div id="bar"></div><div id="target"></div></div></body>',
+    );
+    const doc = dom.window.document;
+    const native = doc.querySelector<HTMLElement>(".mobile-toolbar")!;
+    const spacer = doc.querySelector<HTMLElement>(".mobile-toolbar-spacer")!;
+    const host = new MobileToolbarHost(
+      doc,
+      doc.querySelector<HTMLElement>("#root")!,
+      doc.querySelector<HTMLElement>("#bar")!,
+      doc.querySelector<HTMLElement>("#target")!,
+    );
+    host.reconcile("floating");
+    native.remove();
+    spacer.remove();
+    doc.body.classList.remove("mod-toolbar-open");
+    if (action === "dock") host.reconcile("restored");
+    else host.dispose();
+    assert.equal(native.isConnected, false, action);
+    assert.equal(spacer.isConnected, false, action);
+    assert.equal(native.classList.contains("tp-native-replaced"), false);
+    assert.equal(
+      doc.documentElement.classList.contains("tp-mobile-toolbar-collapsed"),
+      false,
+    );
+    if (action === "dock") {
+      doc.body.classList.add("mod-toolbar-open");
+      doc.querySelector("main")!.append(spacer, native);
+      host.reconcile("docked");
+      assert.equal(doc.querySelector("#bar")!.parentElement, native);
+      host.dispose();
+      assert.equal(native.isConnected, true);
+      assert.equal(spacer.isConnected, true);
+    }
+    dom.window.close();
+  }
 });

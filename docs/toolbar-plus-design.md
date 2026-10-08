@@ -1,6 +1,6 @@
 # toolbar+ design document
 
-**Implementation baseline:** 0.1.18 (`toolbar-plus` plugin ID), targeting Obsidian 1.13.7 and later.
+**Implementation baseline:** 0.1.19 (`toolbar-plus` plugin ID), targeting Obsidian 1.13.7 and later.
 
 **Current refactor proposal:** [`native-toolbar-host-refactor.md`](native-toolbar-host-refactor.md) documents the implementation-ready correction for native-host ownership, reparented CSS, rendered visual coverage, and the unresolved physical-device clearance failure.
 
@@ -165,6 +165,8 @@ or overlay root  (model)   command/API
 ### 7.2 Docked native host and floating overlay
 
 On mobile in docked mode, toolbar+ appends its bar inside Obsidian's `.mobile-toolbar` container. Its command region and trailing handle mirror the native mobile toolbar structure, sizing hooks, and theme surfaces. CSS hides the native container's original children while leaving the host alive, letting Obsidian continue to manage keyboard position and animation.
+
+When docking with the keyboard hidden, the selected docked mode is saved but the toolbar stays hidden until Obsidian reopens its native toolbar. Detached native toolbar and spacer elements must not be reinserted while `mod-toolbar-open` is absent, including during unload. Obsidian owns their reattachment when the keyboard opens.
 
 In floating mode, the bar returns to toolbar+'s own fixed overlay and the suppressed native mobile-toolbar host is collapsed so it reserves no editor height. Holding the floating control temporarily restores that host only when it is available as the keyboard-aware docking target; cancelling or placing the control outside the target collapses it again. On desktop, the native host is not used; visibility is controlled by the `Show on desktop` setting and active Markdown view.
 

@@ -1,21 +1,23 @@
-# toolbar+ 0.1.18 release audit
+# toolbar+ 0.1.19 release audit
 
 Audit date: 2026-10-08
 
 ## Result
 
-Local release preparation includes the current source, runtime assets, and final-settings-save fix. The user reports that the current build looks fine on their iPhone. Android remains untested because no device is available; the user accepts that limitation. The existing GitHub repository is `woodamsclark/toolbar-plus` on branch `main`; no GitHub releases were listed when checked on 2026-10-08.
+Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. Local regression tests reproduced the failure before the fix. iPhone verification of 0.1.19 is pending. Android remains untested; the user previously accepted that limitation. Version 0.1.18 is already published; 0.1.19 is a local release candidate.
 
 ## Automated validation
 
-- TypeScript passes and all 47 behavior, lifecycle, settings, and persistence tests pass.
+- TypeScript passes and all 48 behavior, lifecycle, settings, and persistence tests pass.
 - Installed `main.js` exactly matches the source build.
-- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.18 and minimum Obsidian 1.13.7.
+- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.19 and minimum Obsidian 1.13.7.
 - The runtime bundle imports only `obsidian`, with no Node.js, Electron, or development-package imports.
 - Release packaging verifies each runtime file and ZIP entry against the current build. The ZIP contains exactly `main.js`, `manifest.json`, and `styles.css` inside the `toolbar-plus` folder.
 - Settings writes are serialized and coalesced. Unload rejects new edits while allowing the latest queued snapshot to drain, including after a failed earlier write. Regression coverage exercises both the writer and plugin unload.
 - An abrupt app/process termination can still interrupt asynchronous persistence; synchronous plugin unload cannot guarantee completion before process exit.
 - A fresh dependency audit reports three development-dependency warnings: moderate findings for `moment` / the Obsidian SDK and a high finding for `source-map-js`. These packages are not bundled into the plugin; the runtime imports only the host-provided `obsidian` API. Development dependency updates remain separate maintenance work.
+
+- Keyboard-hidden docking and unload leave the native toolbar and spacer detached. Reopening the keyboard lets Obsidian reattach them and restores the docked plugin toolbar. Tests cover both host ownership and the full plugin lifecycle.
 
 ## Compatibility boundaries
 
@@ -27,12 +29,12 @@ The browser preview loads production styles and displays layout measurements aga
 
 ## Device acceptance status
 
-- iPhone: user-reported visual smoke check passed on 2026-10-08. This report does not establish that every scenario below was tested individually.
+- iPhone: initial 0.1.18 smoke check passed, then a keyboard-hidden docking regression was reported. The 0.1.19 fix requires a repeat of that exact sequence on iPhone.
 - Android: untested; user accepts release without an Android check.
 
 ## Additional device checks
 
-After the 0.1.18 runtime files finish syncing and the plugin is reloaded:
+After the 0.1.19 runtime files finish syncing and the plugin is reloaded:
 
 - iPhone: dock, hide/reopen the keyboard, detach, type to the keyboard boundary, reveal/cancel the docking target, and redock. Confirm there is no invisible toolbar row while floating.
 - Check portrait/landscape, light/dark themes, predictive text on/off, safe areas, and command-capsule scrolling.
@@ -43,6 +45,6 @@ After the 0.1.18 runtime files finish syncing and the plugin is reloaded:
 
 ## Publication checklist
 
-The existing public repository is confirmed. Publish the final source and a matching `0.1.18` tag with individual `main.js`, `manifest.json`, and `styles.css` attachments. Address Community directory review results if submission is still needed.
+The existing public repository is confirmed. Publish the final source and a matching `0.1.19` tag with individual `main.js`, `manifest.json`, and `styles.css` attachments. Address Community directory review results if submission is still needed.
 
 The local ZIP is a sideload artifact, not a replacement for the individual GitHub release attachments. Existing 0.1.17 artifacts are retained as historical packages; they do not match the current source.

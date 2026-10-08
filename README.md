@@ -28,7 +28,7 @@ Settings include grid visibility, optional vibration, hold duration (300–1200 
 
 ## Compatibility
 
-Version **0.1.18** requires Obsidian 1.13.7 or later. The current build passed a user-reported visual smoke check on iPhone. Android has not been tested.
+Version **0.1.19** requires Obsidian 1.13.7 or later. Version 0.1.18 passed an initial user-reported iPhone visual smoke check; a subsequently reported keyboard-hidden docking bug is addressed in 0.1.19, pending iPhone verification. Android has not been tested.
 
 ## License
 

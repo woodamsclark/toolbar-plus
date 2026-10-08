@@ -196,10 +196,15 @@ export class MobileToolbarHost {
   }
 
   private restoreDetachedElements() {
+    // Obsidian hide() may run while these elements are already detached by
+    // toolbar+. Its body marker is the observable authority for restoring the
+    // row; saved parents alone would resurrect a keyboard-hidden toolbar.
+    const nativeToolbarOpen =
+      this.doc.body.classList.contains("mod-toolbar-open");
     for (const { element, parent, nextSibling } of this.detachedElements
       .slice()
       .reverse()) {
-      if (!element.isConnected && parent.isConnected) {
+      if (nativeToolbarOpen && !element.isConnected && parent.isConnected) {
         parent.insertBefore(
           element,
           nextSibling?.parentNode === parent ? nextSibling : null,

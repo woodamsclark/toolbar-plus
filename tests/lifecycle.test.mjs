@@ -548,13 +548,33 @@ test("manually docking while the keyboard is hidden returns on keyboard reopen",
   const h = harness();
   await h.start();
   const native = h.w.document.querySelector(".mobile-toolbar");
+  const spacer = h.w.document.createElement("div");
+  spacer.className = "mobile-toolbar-spacer";
+  h.w.document.body.insertBefore(spacer, native);
   h.p.setMode("floating");
+  // Obsidian hide() detaches these nodes and clears the body marker. They
+  // are already detached by toolbar+, so only the marker change is observable.
+  native.remove();
+  spacer.remove();
   h.w.document.body.classList.remove("mod-toolbar-open");
   await h.settle();
 
   h.p.setMode("docked");
   assert.equal(h.p.root.hidden, true);
-  native.remove();
+  assert.equal(h.p.bar.hidden, true);
+  assert.equal(
+    native.isConnected,
+    false,
+    "closed native toolbar must stay detached",
+  );
+  assert.equal(
+    spacer.isConnected,
+    false,
+    "closed native spacer must stay detached",
+  );
+  await h.settle();
+  assert.equal(native.isConnected, false);
+  assert.equal(spacer.isConnected, false);
 
   // iOS can signal focus before Obsidian restores the native toolbar.
   h.w.document.body.classList.add("mod-toolbar-open");
@@ -562,7 +582,7 @@ test("manually docking while the keyboard is hidden returns on keyboard reopen",
     new h.w.FocusEvent("focusin", { bubbles: true }),
   );
   await new Promise((resolve) => setTimeout(resolve, 120));
-  h.w.document.body.append(native);
+  h.w.document.body.append(spacer, native);
   await new Promise((resolve) => setTimeout(resolve, 180));
   await h.settle();
 

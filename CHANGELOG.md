@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.19 — keyboard-hidden docking
+
+- Keep Obsidian's native toolbar and spacer detached when docking or unloading after hiding the keyboard in floating mode.
+- Let Obsidian restore the native row when the keyboard reopens.
+- Extend regression coverage to native row connectivity, not only toolbar+ visibility.
+- iPhone verification of this fix is pending.
+
 ## 0.1.18 — release consistency and final settings saves
 
 - Preserve the latest queued settings snapshot when the plugin unloads, including after a failed earlier save. Reject new edits after unload.
