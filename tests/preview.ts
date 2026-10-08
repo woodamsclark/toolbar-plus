@@ -58,12 +58,59 @@ const p = new ToolbarPlus();
 };
 await p.onload();
 ready!();
+const measure = () => {
+  const editor = document.querySelector<HTMLElement>("#editor")!;
+  const native = document.querySelector<HTMLElement>(".mobile-toolbar");
+  const keyboard = document.querySelector<HTMLElement>(".fixture-keyboard")!;
+  const bar = document.querySelector<HTMLElement>(".tp-bar")!;
+  const handle = document.querySelector<HTMLElement>(".tp-handle")!;
+  const commands = document.querySelector<HTMLElement>(".tp-commands")!;
+  const state =
+    document.querySelector<HTMLElement>(".toolbar-plus")!.dataset.tpHostState;
+  const expectedBottom =
+    state === "docked" && native
+      ? native.getBoundingClientRect().top
+      : keyboard.getBoundingClientRect().top;
+  const gap = expectedBottom - editor.getBoundingClientRect().bottom;
+  const metric = document.querySelector<HTMLOutputElement>("#metrics")!;
+  metric.textContent = [
+    `state=${state}`,
+    `native=${native ? getComputedStyle(native).display : "detached"}/${native?.getBoundingClientRect().height.toFixed(0) ?? "0"}px`,
+    `bar=${bar.getBoundingClientRect().height.toFixed(0)}px`,
+    `bubble=${handle.getBoundingClientRect().width.toFixed(0)}×${handle.getBoundingClientRect().height.toFixed(0)}px`,
+    `capsule=${commands.getBoundingClientRect().height.toFixed(0)}px`,
+    `editor-gap=${gap.toFixed(0)}px`,
+  ].join(" · ");
+};
+const measureNextFrame = () =>
+  requestAnimationFrame(() => requestAnimationFrame(measure));
 document
   .querySelector("#configure")!
   .addEventListener("click", () => p.configure());
-document
-  .querySelector("#float")!
-  .addEventListener("click", () => p.setMode("floating"));
-document
-  .querySelector("#dock")!
-  .addEventListener("click", () => p.setMode("docked"));
+document.querySelector("#float")!.addEventListener("click", () => {
+  p.setMode("floating");
+  // Model Obsidian inserting a replacement host and rewriting body classes
+  // after the keyboard animation. The controller must detach it as well.
+  const replacement = document.createElement("div");
+  replacement.className = "mobile-toolbar";
+  replacement.setAttribute("aria-label", "Delayed replacement toolbar host");
+  document.querySelector(".fixture-app")!.append(replacement);
+  document.body.className = "mod-toolbar-open theme-light";
+  measureNextFrame();
+});
+document.querySelector("#dock")!.addEventListener("click", () => {
+  p.setMode("docked");
+  measureNextFrame();
+});
+document.querySelector("#theme")!.addEventListener("click", (event) => {
+  const dark = document.body.classList.toggle("theme-dark");
+  document.body.classList.toggle("theme-light", !dark);
+  (event.currentTarget as HTMLButtonElement).textContent = dark
+    ? "Light theme"
+    : "Dark theme";
+  measureNextFrame();
+});
+new ResizeObserver(measureNextFrame).observe(
+  document.querySelector(".fixture")!,
+);
+measureNextFrame();

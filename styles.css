@@ -1,6 +1,4 @@
 .toolbar-plus {
-  --tp-size: var(--mobile-toolbar-height, 48px);
-  --tp-button-size: calc(var(--mobile-toolbar-height, 48px) - 8px);
   position: fixed;
   inset: 0;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
@@ -14,14 +12,24 @@
   display: none;
 }
 .tp-bar {
+  --tp-height: 42px;
+  --tp-size: var(--tp-height);
+  --tp-button-size: var(--toolbar-option-width, 40px);
+  --tp-surface: var(
+    --interactive-normal,
+    var(--background-secondary, var(--background-primary, #fff))
+  );
+  --tp-foreground: var(--text-muted, currentColor);
+  --tp-border: var(--background-modifier-border, rgba(127, 127, 127, 0.22));
+  --tp-shadow: var(--shadow-s, 0 3px 14px rgba(0, 0, 0, 0.2));
   position: fixed;
   left: calc(var(--tp-left, 0px) + 8px);
   width: calc(var(--tp-width, 100%) - 16px);
-  height: var(--mobile-toolbar-height, 48px);
-  top: var(--tp-top, calc(100% - var(--mobile-toolbar-height, 48px)));
+  height: var(--tp-height);
+  top: var(--tp-top, calc(100% - var(--tp-height)));
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-4-2, 8px);
   padding: 0;
   background: transparent;
   border: 0;
@@ -29,14 +37,34 @@
   pointer-events: auto;
   box-sizing: border-box;
   transition: top 80ms linear;
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
 }
 .tp-bar.tp-in-native {
   position: relative;
   inset: auto;
+  flex: 0 0 var(--tp-height);
   width: calc(100% - 16px);
-  height: 100%;
+  height: var(--tp-height);
+  min-height: var(--tp-height);
+  max-height: var(--tp-height);
   margin: 0 8px;
   transition: none;
+}
+.tp-bar.tp-in-native .tp-commands,
+.tp-bar.tp-in-native .tp-handle-slot,
+.tp-bar.tp-in-native .tp-handle,
+.tp-bar.tp-in-native .tp-command {
+  height: var(--tp-height) !important;
+  min-height: var(--tp-height) !important;
+  max-height: var(--tp-height) !important;
+}
+.tp-bar.tp-in-native .tp-handle-slot,
+.tp-bar.tp-in-native .tp-handle {
+  flex-basis: var(--tp-height);
+  width: var(--tp-height);
+  min-width: var(--tp-height);
+  max-width: var(--tp-height);
 }
 @media (prefers-reduced-motion: reduce) {
   .tp-bar {
@@ -48,16 +76,16 @@
   flex: 1;
   min-width: 0;
   height: 100%;
-  gap: 1px;
-  padding: 4px 6px;
+  gap: 0;
+  padding: 0 10px;
   overflow-x: auto;
   overflow-y: hidden;
   touch-action: pan-x;
   scrollbar-width: none;
-  background: #050505;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--tp-surface);
+  border: 1px solid var(--tp-border);
   border-radius: 999px;
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.38);
+  box-shadow: var(--tp-shadow);
   box-sizing: border-box;
 }
 .tp-command {
@@ -66,16 +94,24 @@
   justify-content: center;
   flex: 0 0 var(--tp-button-size);
   width: var(--tp-button-size);
-  height: var(--tp-button-size);
+  height: 100%;
   padding: 8px;
   background: transparent !important;
   box-shadow: none !important;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--tp-foreground);
   border: 0;
 }
 .tp-command:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-normal);
+  background: var(--background-modifier-hover) !important;
+}
+.tp-handle-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--tp-size);
+  width: var(--tp-size);
+  height: var(--tp-size);
 }
 .tp-handle {
   display: grid;
@@ -89,12 +125,10 @@
   height: var(--tp-size);
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #050505 !important;
-  color: rgba(255, 255, 255, 0.82);
-  box-shadow:
-    0 3px 14px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--tp-border);
+  background: var(--tp-surface) !important;
+  color: var(--tp-foreground);
+  box-shadow: var(--tp-shadow) !important;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -127,15 +161,16 @@
   pointer-events: none;
   padding: 0;
 }
-.tp-floating,
-.tp-moving {
+.tp-floating .tp-bar,
+.tp-moving .tp-bar {
+  --tp-height: 48px;
   --tp-size: 48px;
   --tp-button-size: 40px;
 }
 .tp-floating .tp-handle,
 .tp-moving .tp-handle {
   border-radius: 50%;
-  background: #050505 !important;
+  background: var(--tp-surface) !important;
 }
 .tp-floating .tp-commands {
   display: none;
@@ -143,6 +178,10 @@
 .tp-floating .tp-handle,
 .tp-moving .tp-handle {
   position: fixed;
+}
+.tp-floating .tp-handle-slot,
+.tp-moving .tp-handle-slot {
+  display: contents;
 }
 .tp-moving .tp-handle {
   cursor: grabbing;
@@ -236,6 +275,28 @@
 }
 .tp-native-replaced > :not(.tp-bar):not(.tp-dock-target) {
   display: none !important;
+}
+.mobile-toolbar.tp-native-collapsed,
+html.tp-mobile-toolbar-collapsed .mobile-toolbar,
+html.tp-mobile-toolbar-collapsed .mobile-toolbar-spacer,
+body:has(.toolbar-plus[data-tp-host-state="floating"]) .mobile-toolbar {
+  display: none !important;
+  flex: 0 0 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+/*
+ * Obsidian's iOS keyboard layout keeps one native toolbar row reserved in the
+ * app container after Toolbar+ detaches that row. Give that exact row back to
+ * the editor while floating. Scoping this to mod-toolbar-open avoids changing
+ * the ordinary full-height workspace or the docked toolbar layout.
+ */
+html.tp-mobile-toolbar-collapsed
+  body.is-mobile.mod-toolbar-open
+  .app-container {
+  height: calc(100% + var(--mobile-toolbar-height, 40px));
 }
 .tp-sr {
   position: absolute;

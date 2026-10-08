@@ -26,6 +26,10 @@ Commands use Obsidian command IDs, including commands from enabled community plu
 Settings include grid visibility, optional vibration, hold duration (300–1200 ms), and gesture distance (16–80 px). toolbar+ saves mode, normalized floating position, and configuration in its local `data.json`. Viewport and safe-area bounds keep the floating handle reachable.
 
 
+## Compatibility
+
+Version **0.1.18** requires Obsidian 1.13.7 or later. The current build passed a user-reported visual smoke check on iPhone. Android has not been tested.
+
 ## License
 
 toolbar+ is licensed under the [Mozilla Public License 2.0](LICENSE).

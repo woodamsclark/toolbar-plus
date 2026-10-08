@@ -173,12 +173,11 @@ var SettingsWriter = class {
   }
   close() {
     this.closed = true;
-    this.pending = void 0;
   }
   async flush() {
     this.writing = true;
     try {
-      while (!this.closed && this.pending) {
+      while (this.pending) {
         const snapshot = this.pending;
         this.pending = void 0;
         try {
@@ -192,6 +191,235 @@ var SettingsWriter = class {
     }
   }
 };
+
+// src/mobile-toolbar-host.ts
+function desiredHostState({
+  mobile,
+  mode,
+  pluginVisible,
+  movingFromDocked,
+  movingFromFloating,
+  nativeToolbarOpen,
+  nativeHostAvailable
+}) {
+  if (!mobile) return "restored";
+  if (movingFromFloating)
+    return nativeToolbarOpen && nativeHostAvailable ? "dock-target" : "floating";
+  if (movingFromDocked) return "floating";
+  if (mode === "floating") return "floating";
+  return pluginVisible && nativeToolbarOpen && nativeHostAvailable ? "docked" : "restored";
+}
+var _MobileToolbarHost = class _MobileToolbarHost {
+  constructor(doc, root, bar, target) {
+    this.native = null;
+    this.detachedElements = [];
+    this.state = "restored";
+    this.doc = doc;
+    this.root = root;
+    this.bar = bar;
+    this.target = target;
+  }
+  get hasNativeHost() {
+    return !!this.native && (this.native.isConnected || this.isDetached(this.native));
+  }
+  get currentState() {
+    return this.state;
+  }
+  containsNativeHost(node) {
+    if (node.nodeType !== 1) return false;
+    const element = node;
+    return element.matches(".mobile-toolbar, .mobile-toolbar-spacer") || !!element.querySelector(".mobile-toolbar, .mobile-toolbar-spacer");
+  }
+  refreshNativeHost() {
+    const next = this.doc.querySelector(".mobile-toolbar");
+    if (!next && this.native && this.isDetached(this.native)) return;
+    if (next !== this.native) {
+      if (this.native && this.isDetached(this.native)) {
+        this.restoreNative(this.native);
+        this.forgetDetached(this.native);
+      } else {
+        this.restoreNative(this.native);
+      }
+      this.native = next;
+    }
+  }
+  reconcile(state) {
+    this.state = state;
+    this.refreshNativeHost();
+    this.apply();
+  }
+  dispose() {
+    this.state = "restored";
+    this.doc.documentElement.classList.remove(
+      _MobileToolbarHost.collapsedDocumentClass
+    );
+    this.moveBarToOverlay();
+    this.moveTargetToOverlay();
+    this.restoreDetachedElements();
+    this.restoreNative(this.native);
+    delete this.root.dataset.tpHostState;
+    this.native = null;
+  }
+  apply() {
+    this.root.dataset.tpHostState = this.state;
+    this.doc.documentElement.classList.toggle(
+      _MobileToolbarHost.collapsedDocumentClass,
+      this.state === "floating"
+    );
+    if (this.state === "floating") {
+      this.moveBarToOverlay();
+      this.moveTargetToOverlay();
+      const native2 = this.native;
+      if (native2 == null ? void 0 : native2.isConnected) {
+        native2.dataset.tpHostState = this.state;
+        native2.classList.add("tp-native-replaced", "tp-native-collapsed");
+        this.detach(native2);
+      }
+      this.doc.querySelectorAll(".mobile-toolbar-spacer").forEach((spacer) => this.detach(spacer));
+      return;
+    }
+    this.restoreDetachedElements();
+    const native = this.native;
+    if (!(native == null ? void 0 : native.isConnected) || this.state === "restored") {
+      this.moveBarToOverlay();
+      this.moveTargetToOverlay();
+      this.restoreNative(native);
+      return;
+    }
+    native.dataset.tpHostState = this.state;
+    native.classList.add("tp-native-replaced");
+    native.classList.remove("tp-native-collapsed");
+    if (this.state === "docked") {
+      this.moveTargetToOverlay();
+      if (this.bar.parentElement !== native) native.append(this.bar);
+      this.bar.classList.add("tp-in-native");
+      return;
+    }
+    if (this.state === "dock-target") {
+      this.moveBarToOverlay();
+      if (this.target.parentElement !== native) native.append(this.target);
+      this.target.classList.add("tp-target-in-native");
+    }
+  }
+  moveBarToOverlay() {
+    if (this.bar.parentElement !== this.root) this.root.prepend(this.bar);
+    this.bar.classList.remove("tp-in-native");
+  }
+  moveTargetToOverlay() {
+    if (this.target.parentElement !== this.root) this.root.append(this.target);
+    this.target.classList.remove("tp-target-in-native");
+  }
+  restoreNative(native) {
+    if (!native) return;
+    native.classList.remove("tp-native-replaced", "tp-native-collapsed");
+    delete native.dataset.tpHostState;
+  }
+  isDetached(element) {
+    return this.detachedElements.some((entry) => entry.element === element);
+  }
+  forgetDetached(element) {
+    this.detachedElements = this.detachedElements.filter(
+      (entry) => entry.element !== element
+    );
+  }
+  detach(element) {
+    if (this.isDetached(element)) return;
+    const parent = element.parentNode;
+    if (!parent) return;
+    this.detachedElements.push({
+      element,
+      parent,
+      nextSibling: element.nextSibling
+    });
+    element.remove();
+  }
+  restoreDetachedElements() {
+    for (const { element, parent, nextSibling } of this.detachedElements.slice().reverse()) {
+      if (!element.isConnected && parent.isConnected) {
+        parent.insertBefore(
+          element,
+          (nextSibling == null ? void 0 : nextSibling.parentNode) === parent ? nextSibling : null
+        );
+      }
+    }
+    this.detachedElements = [];
+  }
+};
+_MobileToolbarHost.collapsedDocumentClass = "tp-mobile-toolbar-collapsed";
+var MobileToolbarHost = _MobileToolbarHost;
+
+// src/viewport-layout.ts
+function clamp2(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+var FLOATING_HANDLE_SIZE = 48;
+var HORIZONTAL_PLACEMENT_MARGIN = 8;
+var VERTICAL_PLACEMENT_MARGIN = 8;
+var BOTTOM_HANDLE_CLEARANCE = 8;
+function viewportBounds(viewport, innerWidth, innerHeight) {
+  var _a, _b;
+  return {
+    // Fixed controls use coordinates local to the visual viewport. Its page
+    // offset must not be added again when iOS pans around the keyboard.
+    left: 0,
+    top: 0,
+    width: (_a = viewport == null ? void 0 : viewport.width) != null ? _a : innerWidth,
+    height: (_b = viewport == null ? void 0 : viewport.height) != null ? _b : innerHeight
+  };
+}
+function placementSize(bounds, innerWidth, innerHeight, documentWidth, documentHeight) {
+  return {
+    width: Math.max(bounds.width, innerWidth || 0, documentWidth || 0),
+    height: Math.max(bounds.height, innerHeight || 0, documentHeight || 0)
+  };
+}
+function pointFromNormalized(position, placement) {
+  return {
+    x: HORIZONTAL_PLACEMENT_MARGIN + position.x * Math.max(0, placement.width - 64),
+    y: VERTICAL_PLACEMENT_MARGIN + position.y * Math.max(0, placement.height - 80)
+  };
+}
+function normalizedFromPoint(point, placement) {
+  return {
+    x: clamp2(
+      (point.x - HORIZONTAL_PLACEMENT_MARGIN) / Math.max(1, placement.width - 64),
+      0,
+      1
+    ),
+    y: clamp2(
+      (point.y - VERTICAL_PLACEMENT_MARGIN) / Math.max(1, placement.height - 80),
+      0,
+      1
+    )
+  };
+}
+function clampHandlePoint(point, bounds, insets) {
+  return {
+    x: clamp2(
+      point.x,
+      bounds.left + Math.max(8, insets.left),
+      bounds.left + bounds.width - FLOATING_HANDLE_SIZE - Math.max(8, insets.right)
+    ),
+    y: clamp2(
+      point.y,
+      bounds.top + Math.max(8, insets.top),
+      bounds.top + bounds.height - FLOATING_HANDLE_SIZE - BOTTOM_HANDLE_CLEARANCE - Math.max(8, insets.bottom)
+    )
+  };
+}
+function toolbarPositions(bounds, requestedHeight) {
+  const height = clamp2(
+    Number.isFinite(requestedHeight) && requestedHeight > 0 ? requestedHeight : 48,
+    1,
+    bounds.height
+  );
+  const top = bounds.height - height;
+  return {
+    height,
+    top,
+    targetTop: clamp2(top - 4, 0, Math.max(0, bounds.height - 60))
+  };
+}
 
 // src/main.ts
 function registry(app) {
@@ -275,7 +503,6 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
     this.config = defaults();
-    this.nativeBar = null;
     this.frame = 0;
     this.disposed = false;
     this.ready = false;
@@ -379,7 +606,8 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       attr: { role: "toolbar", "aria-label": "toolbar+" }
     });
     this.commandsEl = this.bar.createDiv({ cls: "tp-commands" });
-    this.handle = this.bar.createEl("button", {
+    this.handleSlot = this.bar.createDiv({ cls: "tp-handle-slot" });
+    this.handle = this.handleSlot.createEl("button", {
       cls: "tp-handle",
       attr: {
         "aria-label": "Configure toolbar+. Swipe down when docked to hide the keyboard; hold to move.",
@@ -399,6 +627,12 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       cls: "tp-sr",
       attr: { role: "status", "aria-live": "polite" }
     });
+    this.host = new MobileToolbarHost(
+      document,
+      this.root,
+      this.bar,
+      this.target
+    );
     this.ui.registerDomEvent(this.handle, "pointerdown", (e) => this.down(e));
     this.ui.registerDomEvent(document, "pointermove", (e) => this.move(e));
     this.ui.registerDomEvent(document, "pointerup", (e) => this.up(e));
@@ -458,11 +692,8 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       this.app.workspace.on("layout-change", () => this.scheduleLayout())
     );
     if (typeof MutationObserver !== "undefined") {
-      let keyboardOpen = document.body.classList.contains("mod-toolbar-open");
       const keyboardObserver = new MutationObserver(() => {
-        const nowOpen = document.body.classList.contains("mod-toolbar-open");
-        if (nowOpen !== keyboardOpen) this.scheduleKeyboardLayout();
-        keyboardOpen = nowOpen;
+        this.scheduleKeyboardLayout();
       });
       keyboardObserver.observe(document.body, {
         attributes: true,
@@ -474,9 +705,10 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
           (record) => record.type === "childList" && [
             ...Array.from(record.addedNodes),
             ...Array.from(record.removedNodes)
-          ].some(
-            (node) => node instanceof Element && (node.matches(".mobile-toolbar") || !!node.querySelector(".mobile-toolbar"))
-          )
+          ].some((node) => {
+            var _a2;
+            return (_a2 = this.host) == null ? void 0 : _a2.containsNativeHost(node);
+          })
         );
         if (toolbarChanged) this.scheduleLayout();
       });
@@ -487,15 +719,21 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     this.refresh();
   }
   bounds() {
-    var _a, _b, _c, _d;
-    const v = window.visualViewport;
-    const left = (_a = v == null ? void 0 : v.offsetLeft) != null ? _a : 0, top = (_b = v == null ? void 0 : v.offsetTop) != null ? _b : 0;
-    return {
-      left,
-      top,
-      width: (_c = v == null ? void 0 : v.width) != null ? _c : window.innerWidth,
-      height: (_d = v == null ? void 0 : v.height) != null ? _d : window.innerHeight
-    };
+    return viewportBounds(
+      window.visualViewport,
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+  placementSize(bounds = this.bounds()) {
+    const documentElement = document.documentElement;
+    return placementSize(
+      bounds,
+      window.innerWidth,
+      window.innerHeight,
+      (documentElement == null ? void 0 : documentElement.clientWidth) || 0,
+      (documentElement == null ? void 0 : documentElement.clientHeight) || 0
+    );
   }
   scheduleLayout() {
     if (this.disposed || !this.ready) return;
@@ -509,57 +747,55 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     this.scheduleLayout();
   }
   layout() {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f, _g;
     if (this.disposed || !this.ready) return;
     const b = this.bounds();
     const active = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
-    const native = document.querySelector(".mobile-toolbar");
-    const dockedVisible = import_obsidian.Platform.isMobile ? !!(native == null ? void 0 : native.isConnected) && document.body.classList.contains("mod-toolbar-open") : this.config.desktop && !!active;
+    (_a = this.host) == null ? void 0 : _a.refreshNativeHost();
+    const nativeAvailable = (_c = (_b = this.host) == null ? void 0 : _b.hasNativeHost) != null ? _c : false;
+    const nativeToolbarOpen = document.body.classList.contains("mod-toolbar-open");
+    const dockedVisible = import_obsidian.Platform.isMobile ? nativeAvailable && nativeToolbarOpen : this.config.desktop && !!active;
     const visible = !this.suspended && (import_obsidian.Platform.isMobile || this.config.desktop) && (this.config.mode === "floating" || this.config.mode === "docked" && dockedVisible);
     if (!visible && this.interaction) this.finish();
     this.root.hidden = !visible;
     this.bar.hidden = !visible;
-    if (this.nativeBar !== native) {
-      (_a = this.nativeBar) == null ? void 0 : _a.classList.remove("tp-native-replaced");
-      this.nativeBar = native;
-    }
-    const useNativeHost = import_obsidian.Platform.isMobile && this.config.mode === "docked" && visible && !!native;
-    const replaceNative = import_obsidian.Platform.isMobile && visible && !!native;
-    (_b = this.nativeBar) == null ? void 0 : _b.classList.toggle("tp-native-replaced", replaceNative);
-    if (useNativeHost) {
-      if (this.bar.parentElement !== native) native.append(this.bar);
-      this.bar.addClass("tp-in-native");
-    } else {
-      if (this.bar.parentElement !== this.root) this.root.prepend(this.bar);
-      this.bar.removeClass("tp-in-native");
-    }
+    const moving = ((_d = this.interaction) == null ? void 0 : _d.kind) === "moving";
+    (_g = this.host) == null ? void 0 : _g.reconcile(
+      desiredHostState({
+        mobile: import_obsidian.Platform.isMobile,
+        mode: this.config.mode,
+        pluginVisible: visible,
+        movingFromDocked: moving && ((_e = this.interaction) == null ? void 0 : _e.previousMode) === "docked",
+        movingFromFloating: moving && ((_f = this.interaction) == null ? void 0 : _f.previousMode) === "floating",
+        nativeToolbarOpen,
+        nativeHostAvailable: nativeAvailable
+      })
+    );
     const configuredHeight = parseFloat(
-      getComputedStyle(this.root).getPropertyValue("--mobile-toolbar-height")
+      getComputedStyle(this.bar).getPropertyValue("--tp-height")
     );
-    const toolbarHeight = clamp(
-      Number.isFinite(configuredHeight) && configuredHeight > 0 ? configuredHeight : 48,
-      1,
-      b.height
-    );
-    const top = b.height - toolbarHeight;
+    const { top, targetTop } = toolbarPositions(b, configuredHeight);
     this.root.style.setProperty("--tp-left", "0px");
     this.root.style.setProperty("--tp-width", `${b.width}px`);
     this.root.style.setProperty("--tp-top", `${top}px`);
-    this.root.style.setProperty(
-      "--tp-target-top",
-      `${clamp(top - 4, 0, b.height - 60)}px`
-    );
-    if (!this.interaction || this.interaction.kind !== "moving")
-      this.placeHandle(
-        b.left + 8 + this.config.position.x * Math.max(0, b.width - 64),
-        b.top + 8 + this.config.position.y * Math.max(0, b.height - 80)
-      );
+    this.root.style.setProperty("--tp-target-top", `${targetTop}px`);
+    if (!this.interaction || this.interaction.kind !== "moving") {
+      const placement = this.placementSize(b);
+      const point = pointFromNormalized(this.config.position, placement);
+      this.placeHandle(point.x, point.y);
+    }
   }
   placeHandle(x, y) {
     const b = this.bounds(), style = getComputedStyle(this.root);
-    const inset = (side) => Math.max(8, parseFloat(style.getPropertyValue(`padding-${side}`)) || 0);
-    this.handle.style.left = `${clamp(x, b.left + inset("left"), b.left + b.width - 48 - inset("right"))}px`;
-    this.handle.style.top = `${clamp(y, b.top + inset("top"), b.top + b.height - 56 - inset("bottom"))}px`;
+    const inset = (side) => parseFloat(style.getPropertyValue(`padding-${side}`)) || 0;
+    const point = clampHandlePoint({ x, y }, b, {
+      left: inset("left"),
+      right: inset("right"),
+      top: inset("top"),
+      bottom: inset("bottom")
+    });
+    this.handle.style.left = `${point.x}px`;
+    this.handle.style.top = `${point.y}px`;
   }
   refresh() {
     if (this.disposed || !this.ready) return;
@@ -659,9 +895,12 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     i.timer = window.setTimeout(() => {
       if (this.interaction !== i || i.kind !== "pending") return;
       i.kind = "moving";
-      if (this.bar.parentElement !== this.root) this.root.prepend(this.bar);
-      this.bar.removeClass("tp-in-native");
       this.root.addClass("tp-moving");
+      if (i.previousMode === "floating") {
+        this.root.addClass("tp-can-dock");
+        this.target.setText("Dock toolbar");
+      }
+      this.layout();
       this.placeHandle(rect.left, rect.top);
       try {
         this.handle.setPointerCapture(i.id);
@@ -669,13 +908,6 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       }
       this.tick(18);
       if (i.previousMode === "floating") {
-        this.root.addClass("tp-can-dock");
-        const native = document.querySelector(".mobile-toolbar");
-        if ((native == null ? void 0 : native.isConnected) && document.body.classList.contains("mod-toolbar-open")) {
-          native.append(this.target);
-          this.target.addClass("tp-target-in-native");
-        }
-        this.target.setText("Dock toolbar");
         this.status.setText(
           "Moving. Release over the bottom target to dock the toolbar."
         );
@@ -746,11 +978,11 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     if (kind === "moving") {
       this.placeHandle(e.clientX - i.offsetX, e.clientY - i.offsetY);
       this.config.mode = overTarget ? "docked" : "floating";
-      const r = this.handle.getBoundingClientRect(), b = this.bounds();
-      this.config.position = {
-        x: clamp((r.left - b.left - 8) / Math.max(1, b.width - 64), 0, 1),
-        y: clamp((r.top - b.top - 8) / Math.max(1, b.height - 80), 0, 1)
-      };
+      const r = this.handle.getBoundingClientRect(), placement = this.placementSize();
+      this.config.position = normalizedFromPoint(
+        { x: r.left, y: r.top },
+        placement
+      );
       this.persist();
     }
     this.finish();
@@ -790,8 +1022,6 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       "tp-gesturing",
       "tp-pressed"
     );
-    if (this.target.parentElement !== this.root) this.root.append(this.target);
-    this.target.removeClass("tp-target-in-native");
     this.target.removeClass("tp-over");
     this.grid.querySelectorAll(".tp-selected").forEach((c) => c.classList.remove("tp-selected"));
   }
@@ -841,17 +1071,15 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     this.refresh();
   }
   cleanupUi() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b;
     this.ready = false;
     this.finish();
     this.ui.unload();
     cancelAnimationFrame(this.frame);
     this.frame = 0;
-    if (((_a = this.bar) == null ? void 0 : _a.parentElement) !== this.root) (_b = this.root) == null ? void 0 : _b.prepend(this.bar);
-    (_c = this.bar) == null ? void 0 : _c.removeClass("tp-in-native");
-    (_d = this.root) == null ? void 0 : _d.remove();
-    (_e = this.nativeBar) == null ? void 0 : _e.classList.remove("tp-native-replaced");
-    this.nativeBar = null;
+    (_a = this.host) == null ? void 0 : _a.dispose();
+    this.host = void 0;
+    (_b = this.root) == null ? void 0 : _b.remove();
   }
   onunload() {
     this.disposed = true;

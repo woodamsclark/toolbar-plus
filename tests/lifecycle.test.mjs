@@ -229,6 +229,30 @@ function harness(options = {}) {
     },
   };
 }
+test("unload preserves the final queued settings save", async () => {
+  const h = harness();
+  await h.start();
+  let release;
+  const saved = [];
+  h.p.saveData = async (snapshot) => {
+    saved.push(snapshot.holdMs);
+    if (saved.length === 1)
+      await new Promise((resolve) => {
+        release = resolve;
+      });
+  };
+  h.p.config.holdMs = 400;
+  h.p.persist();
+  h.p.config.holdMs = 700;
+  h.p.persist();
+  h.end();
+  h.p.config.holdMs = 900;
+  h.p.persist();
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(saved, [400, 700]);
+});
+
 test("immediate floating swipe executes once; returning to center cancels", async () => {
   const h = harness();
   await h.start();
@@ -355,7 +379,10 @@ test("clamps after resize; missing commands notify; unload restores native toolb
       .classList.contains("tp-native-replaced"),
     true,
   );
+  const native = h.w.document.querySelector(".mobile-toolbar");
   h.p.setMode("floating");
+  assert.equal(h.w.document.querySelector(".mobile-toolbar"), null);
+  assert.equal(native.classList.contains("tp-native-collapsed"), true);
   h.p.config.position = { x: 1, y: 1 };
   Object.defineProperty(h.w, "innerWidth", { value: 320, configurable: true });
   Object.defineProperty(h.w, "innerHeight", { value: 280, configurable: true });
@@ -372,6 +399,12 @@ test("clamps after resize; missing commands notify; unload restores native toolb
       .classList.contains("tp-native-replaced"),
     false,
   );
+  assert.equal(
+    h.w.document
+      .querySelector(".mobile-toolbar")
+      .classList.contains("tp-native-collapsed"),
+    false,
+  );
   h.end();
 });
 
@@ -386,20 +419,43 @@ test("docked toolbar follows the native keyboard toolbar while floating stays vi
   assert.equal(h.p.bar.classList.contains("tp-in-native"), true);
   assert.equal(native.contains(original), true);
   assert.equal(native.classList.contains("tp-native-replaced"), true);
+  assert.equal(native.classList.contains("tp-native-collapsed"), false);
+  assert.equal(native.dataset.tpHostState, "docked");
+  assert.equal(h.p.root.dataset.tpHostState, "docked");
+  assert.equal(
+    h.p.bar.classList.contains("mobile-toolbar-options-container"),
+    false,
+  );
+  assert.equal(
+    h.p.commandsEl.classList.contains("mobile-toolbar-options-list"),
+    false,
+  );
+  assert.equal(
+    h.p.handleSlot.classList.contains("mobile-toolbar-floating-options"),
+    false,
+  );
+  assert.equal(h.p.handle.classList.contains("mobile-toolbar-option"), false);
   h.w.document.body.classList.remove("mod-toolbar-open");
   h.p.layout();
   assert.equal(h.p.root.hidden, true);
   assert.equal(h.p.bar.parentElement, h.p.root);
+  h.w.document.body.classList.add("mod-toolbar-open");
   h.p.setMode("floating");
   assert.equal(h.p.root.hidden, false);
   assert.equal(h.p.bar.parentElement, h.p.root);
   assert.equal(native.contains(original), true);
   assert.equal(native.classList.contains("tp-native-replaced"), true);
+  assert.equal(native.classList.contains("tp-native-collapsed"), true);
+  assert.equal(native.dataset.tpHostState, "floating");
   h.p.config.holdMs = 5;
   h.event("pointerdown");
   await new Promise((resolve) => setTimeout(resolve, 15));
-  assert.equal(h.p.target.parentElement, h.p.root);
+  assert.equal(h.p.target.parentElement, native);
+  assert.equal(native.classList.contains("tp-native-collapsed"), false);
+  assert.equal(native.dataset.tpHostState, "dock-target");
   h.event("pointercancel");
+  assert.equal(native.classList.contains("tp-native-collapsed"), true);
+  assert.equal(native.dataset.tpHostState, "floating");
   h.end();
 });
 test("blur cannot execute stale gestures", async () => {
@@ -491,18 +547,20 @@ test("keyboard body-class changes update visibility without manual layout calls"
 test("manually docking while the keyboard is hidden returns on keyboard reopen", async () => {
   const h = harness();
   await h.start();
-  h.p.setMode("floating");
   const native = h.w.document.querySelector(".mobile-toolbar");
+  h.p.setMode("floating");
   h.w.document.body.classList.remove("mod-toolbar-open");
-  native.remove();
   await h.settle();
 
   h.p.setMode("docked");
   assert.equal(h.p.root.hidden, true);
+  native.remove();
 
   // iOS can signal focus before Obsidian restores the native toolbar.
   h.w.document.body.classList.add("mod-toolbar-open");
-  h.w.document.body.dispatchEvent(new h.w.FocusEvent("focusin", { bubbles: true }));
+  h.w.document.body.dispatchEvent(
+    new h.w.FocusEvent("focusin", { bubbles: true }),
+  );
   await new Promise((resolve) => setTimeout(resolve, 120));
   h.w.document.body.append(native);
   await new Promise((resolve) => setTimeout(resolve, 180));
@@ -578,6 +636,49 @@ test("visual viewport resize and scroll events reposition the docked toolbar", a
   await h.settle();
   assert.equal(h.p.root.style.getPropertyValue("--tp-top"), "412px");
   assert.equal(h.p.root.style.getPropertyValue("--tp-left"), "0px");
+  h.end();
+});
+
+test("floating control stays above the keyboard and returns to its saved position", async () => {
+  const h = harness();
+  const listeners = new Map();
+  const viewport = {
+    offsetLeft: 0,
+    offsetTop: 0,
+    width: 390,
+    height: 700,
+    addEventListener(type, callback) {
+      listeners.set(type, callback);
+    },
+    removeEventListener(type) {
+      listeners.delete(type);
+    },
+  };
+  Object.defineProperty(h.w, "innerWidth", { value: 390, configurable: true });
+  Object.defineProperty(h.w, "innerHeight", { value: 700, configurable: true });
+  Object.defineProperty(h.w, "visualViewport", {
+    configurable: true,
+    value: viewport,
+  });
+  await h.start();
+  h.p.setMode("floating");
+  h.p.config.position = { x: 0.5, y: 1 };
+  h.p.layout();
+  const savedTop = parseFloat(h.p.handle.style.top);
+
+  viewport.offsetTop = 50;
+  viewport.height = 400;
+  listeners.get("resize")();
+  await h.settle();
+  const raisedTop = parseFloat(h.p.handle.style.top);
+  assert.ok(raisedTop + 48 <= viewport.height - 8);
+  assert.ok(raisedTop < savedTop);
+
+  viewport.offsetTop = 0;
+  viewport.height = 700;
+  listeners.get("resize")();
+  await h.settle();
+  assert.equal(parseFloat(h.p.handle.style.top), savedTop);
   h.end();
 });
 
@@ -701,15 +802,13 @@ test("modal tabs preserve bindings, open in current mode, and support keyboard n
   );
   assert.equal(modal.contentEl.querySelectorAll("input").length, 0);
   const before = JSON.stringify(h.p.config);
-  modal.contentEl
-    .querySelector('[aria-selected="true"]')
-    .dispatchEvent(
-      new h.w.KeyboardEvent("keydown", {
-        key: "ArrowLeft",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+  modal.contentEl.querySelector('[aria-selected="true"]').dispatchEvent(
+    new h.w.KeyboardEvent("keydown", {
+      key: "ArrowLeft",
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
   assert.equal(
     modal.contentEl.querySelector('[aria-selected="true"]').textContent,
     "Docked",

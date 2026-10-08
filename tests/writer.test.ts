@@ -49,15 +49,16 @@ test("a failed save does not prevent the next edit being saved", async () => {
   assert.equal(attempts, 2);
 });
 
-test("closing drops pending and future writes", async () => {
+test("closing drains the latest pending snapshot and rejects future writes", async () => {
   let release!: () => void;
   const saved: number[] = [];
   const writer = new SettingsWriter(
     async (snapshot) => {
       saved.push(snapshot.holdMs);
-      await new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      if (saved.length === 1)
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
     },
     () => {},
   );
@@ -69,9 +70,54 @@ test("closing drops pending and future writes", async () => {
   afterClose.holdMs = 600;
   writer.enqueue(first);
   writer.enqueue(pending);
+  pending.holdMs = 550;
+  writer.enqueue(pending);
   writer.close();
+  writer.close();
+  pending.holdMs = 800;
   writer.enqueue(afterClose);
   release();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(saved, [400]);
+  assert.deepEqual(saved, [400, 550]);
+});
+
+test("closing while idle saves nothing and rejects new edits", async () => {
+  const saved: number[] = [];
+  const writer = new SettingsWriter(
+    async (snapshot) => {
+      saved.push(snapshot.holdMs);
+    },
+    () => assert.fail("save should succeed"),
+  );
+  writer.close();
+  writer.enqueue(defaults());
+  await Promise.resolve();
+  assert.deepEqual(saved, []);
+});
+
+test("a failed in-flight write still drains the final snapshot after closing", async () => {
+  let reject!: (error: Error) => void;
+  let failures = 0;
+  const saved: number[] = [];
+  const writer = new SettingsWriter(
+    async (snapshot) => {
+      saved.push(snapshot.holdMs);
+      if (saved.length === 1)
+        await new Promise<void>((_, fail) => {
+          reject = fail;
+        });
+    },
+    () => {
+      failures++;
+    },
+  );
+  const config = defaults();
+  writer.enqueue(config);
+  config.holdMs = 700;
+  writer.enqueue(config);
+  writer.close();
+  reject(Error("temporary failure"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(saved, [450, 700]);
+  assert.equal(failures, 1);
 });

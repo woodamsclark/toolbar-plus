@@ -14,10 +14,7 @@ import {
   setIcon,
 } from "obsidian";
 import type { Editor } from "obsidian";
-import {
-  InsertAliasController,
-  INVALID_ALIAS_MESSAGE,
-} from "./insert-alias";
+import { InsertAliasController, INVALID_ALIAS_MESSAGE } from "./insert-alias";
 import {
   arrows,
   Binding,
@@ -29,6 +26,15 @@ import {
   normalize,
 } from "./model";
 import { SettingsWriter } from "./settings-writer";
+import { desiredHostState, MobileToolbarHost } from "./mobile-toolbar-host";
+import {
+  clampHandlePoint,
+  normalizedFromPoint,
+  placementSize as resolvePlacementSize,
+  pointFromNormalized,
+  toolbarPositions,
+  viewportBounds,
+} from "./viewport-layout";
 interface CommandRegistry {
   findCommand?: (id: string) => Command | undefined;
   listCommands?: () => Command[];
@@ -143,12 +149,13 @@ export default class ToolbarPlus extends Plugin {
   private root!: HTMLElement;
   private bar!: HTMLElement;
   private commandsEl!: HTMLElement;
+  private handleSlot!: HTMLElement;
   private handle!: HTMLButtonElement;
   private grid!: HTMLElement;
   private target!: HTMLElement;
   private status!: HTMLElement;
   private interaction?: Interaction;
-  private nativeBar: HTMLElement | null = null;
+  private host?: MobileToolbarHost;
   private frame = 0;
   private disposed = false;
   private ready = false;
@@ -255,12 +262,14 @@ export default class ToolbarPlus extends Plugin {
       attr: { role: "toolbar", "aria-label": "toolbar+" },
     });
     this.commandsEl = this.bar.createDiv({ cls: "tp-commands" });
-    this.handle = this.bar.createEl("button", {
+    this.handleSlot = this.bar.createDiv({ cls: "tp-handle-slot" });
+    this.handle = this.handleSlot.createEl("button", {
       cls: "tp-handle",
       attr: {
         "aria-label":
           "Configure toolbar+. Swipe down when docked to hide the keyboard; hold to move.",
-        title: "toolbar+ · tap to configure · swipe down to hide keyboard · hold to move",
+        title:
+          "toolbar+ · tap to configure · swipe down to hide keyboard · hold to move",
       },
     });
     for (let i = 0; i < 9; i++) this.handle.createSpan();
@@ -276,6 +285,12 @@ export default class ToolbarPlus extends Plugin {
       cls: "tp-sr",
       attr: { role: "status", "aria-live": "polite" },
     });
+    this.host = new MobileToolbarHost(
+      document,
+      this.root,
+      this.bar,
+      this.target,
+    );
     this.ui.registerDomEvent(this.handle, "pointerdown", (e) => this.down(e));
     this.ui.registerDomEvent(document, "pointermove", (e) => this.move(e));
     this.ui.registerDomEvent(document, "pointerup", (e) => this.up(e));
@@ -328,11 +343,11 @@ export default class ToolbarPlus extends Plugin {
       this.app.workspace.on("layout-change", () => this.scheduleLayout()),
     );
     if (typeof MutationObserver !== "undefined") {
-      let keyboardOpen = document.body.classList.contains("mod-toolbar-open");
       const keyboardObserver = new MutationObserver(() => {
-        const nowOpen = document.body.classList.contains("mod-toolbar-open");
-        if (nowOpen !== keyboardOpen) this.scheduleKeyboardLayout();
-        keyboardOpen = nowOpen;
+        // Obsidian may rewrite the body's complete class list during keyboard
+        // transitions. Always reconcile so the floating host marker is
+        // restored even when mod-toolbar-open itself did not change.
+        this.scheduleKeyboardLayout();
       });
       keyboardObserver.observe(document.body, {
         attributes: true,
@@ -348,12 +363,7 @@ export default class ToolbarPlus extends Plugin {
             [
               ...Array.from(record.addedNodes),
               ...Array.from(record.removedNodes),
-            ].some(
-              (node) =>
-                node instanceof Element &&
-                (node.matches(".mobile-toolbar") ||
-                  !!node.querySelector(".mobile-toolbar")),
-            ),
+            ].some((node) => this.host?.containsNativeHost(node)),
         );
         if (toolbarChanged) this.scheduleLayout();
       });
@@ -364,15 +374,21 @@ export default class ToolbarPlus extends Plugin {
     this.refresh();
   }
   private bounds() {
-    const v = window.visualViewport;
-    const left = v?.offsetLeft ?? 0,
-      top = v?.offsetTop ?? 0;
-    return {
-      left,
-      top,
-      width: v?.width ?? window.innerWidth,
-      height: v?.height ?? window.innerHeight,
-    };
+    return viewportBounds(
+      window.visualViewport,
+      window.innerWidth,
+      window.innerHeight,
+    );
+  }
+  private placementSize(bounds = this.bounds()) {
+    const documentElement = document.documentElement;
+    return resolvePlacementSize(
+      bounds,
+      window.innerWidth,
+      window.innerHeight,
+      documentElement?.clientWidth || 0,
+      documentElement?.clientHeight || 0,
+    );
   }
   private scheduleLayout() {
     if (this.disposed || !this.ready) return;
@@ -389,10 +405,12 @@ export default class ToolbarPlus extends Plugin {
     if (this.disposed || !this.ready) return;
     const b = this.bounds();
     const active = this.app.workspace.getActiveViewOfType(MarkdownView);
-    const native = document.querySelector<HTMLElement>(".mobile-toolbar");
+    this.host?.refreshNativeHost();
+    const nativeAvailable = this.host?.hasNativeHost ?? false;
+    const nativeToolbarOpen =
+      document.body.classList.contains("mod-toolbar-open");
     const dockedVisible = Platform.isMobile
-      ? !!native?.isConnected &&
-        document.body.classList.contains("mod-toolbar-open")
+      ? nativeAvailable && nativeToolbarOpen
       : this.config.desktop && !!active;
     const visible =
       !this.suspended &&
@@ -402,58 +420,46 @@ export default class ToolbarPlus extends Plugin {
     if (!visible && this.interaction) this.finish();
     this.root.hidden = !visible;
     this.bar.hidden = !visible;
-    if (this.nativeBar !== native) {
-      this.nativeBar?.classList.remove("tp-native-replaced");
-      this.nativeBar = native;
-    }
-    const useNativeHost =
-      Platform.isMobile &&
-      this.config.mode === "docked" &&
-      visible &&
-      !!native;
-    const replaceNative = Platform.isMobile && visible && !!native;
-    this.nativeBar?.classList.toggle("tp-native-replaced", replaceNative);
-    if (useNativeHost) {
-      if (this.bar.parentElement !== native) native.append(this.bar);
-      this.bar.addClass("tp-in-native");
-    } else {
-      if (this.bar.parentElement !== this.root) this.root.prepend(this.bar);
-      this.bar.removeClass("tp-in-native");
-    }
+    const moving = this.interaction?.kind === "moving";
+    this.host?.reconcile(
+      desiredHostState({
+        mobile: Platform.isMobile,
+        mode: this.config.mode,
+        pluginVisible: visible,
+        movingFromDocked: moving && this.interaction?.previousMode === "docked",
+        movingFromFloating:
+          moving && this.interaction?.previousMode === "floating",
+        nativeToolbarOpen,
+        nativeHostAvailable: nativeAvailable,
+      }),
+    );
     const configuredHeight = parseFloat(
-      getComputedStyle(this.root).getPropertyValue("--mobile-toolbar-height"),
+      getComputedStyle(this.bar).getPropertyValue("--tp-height"),
     );
-    const toolbarHeight = clamp(
-      Number.isFinite(configuredHeight) && configuredHeight > 0
-        ? configuredHeight
-        : 48,
-      1,
-      b.height,
-    );
-    // Fixed elements are already positioned in the visual viewport's local
-    // coordinate space on iOS. Adding offsetTop/offsetLeft here applies the
-    // viewport displacement twice and can put the bar behind the keyboard.
-    const top = b.height - toolbarHeight;
+    const { top, targetTop } = toolbarPositions(b, configuredHeight);
     this.root.style.setProperty("--tp-left", "0px");
     this.root.style.setProperty("--tp-width", `${b.width}px`);
     this.root.style.setProperty("--tp-top", `${top}px`);
-    this.root.style.setProperty(
-      "--tp-target-top",
-      `${clamp(top - 4, 0, b.height - 60)}px`,
-    );
-    if (!this.interaction || this.interaction.kind !== "moving")
-      this.placeHandle(
-        b.left + 8 + this.config.position.x * Math.max(0, b.width - 64),
-        b.top + 8 + this.config.position.y * Math.max(0, b.height - 80),
-      );
+    this.root.style.setProperty("--tp-target-top", `${targetTop}px`);
+    if (!this.interaction || this.interaction.kind !== "moving") {
+      const placement = this.placementSize(b);
+      const point = pointFromNormalized(this.config.position, placement);
+      this.placeHandle(point.x, point.y);
+    }
   }
   private placeHandle(x: number, y: number) {
     const b = this.bounds(),
       style = getComputedStyle(this.root);
     const inset = (side: string) =>
-      Math.max(8, parseFloat(style.getPropertyValue(`padding-${side}`)) || 0);
-    this.handle.style.left = `${clamp(x, b.left + inset("left"), b.left + b.width - 48 - inset("right"))}px`;
-    this.handle.style.top = `${clamp(y, b.top + inset("top"), b.top + b.height - 56 - inset("bottom"))}px`;
+      parseFloat(style.getPropertyValue(`padding-${side}`)) || 0;
+    const point = clampHandlePoint({ x, y }, b, {
+      left: inset("left"),
+      right: inset("right"),
+      top: inset("top"),
+      bottom: inset("bottom"),
+    });
+    this.handle.style.left = `${point.x}px`;
+    this.handle.style.top = `${point.y}px`;
   }
   refresh() {
     if (this.disposed || !this.ready) return;
@@ -565,9 +571,12 @@ export default class ToolbarPlus extends Plugin {
     i.timer = window.setTimeout(() => {
       if (this.interaction !== i || i.kind !== "pending") return;
       i.kind = "moving";
-      if (this.bar.parentElement !== this.root) this.root.prepend(this.bar);
-      this.bar.removeClass("tp-in-native");
       this.root.addClass("tp-moving");
+      if (i.previousMode === "floating") {
+        this.root.addClass("tp-can-dock");
+        this.target.setText("Dock toolbar");
+      }
+      this.layout();
       this.placeHandle(rect.left, rect.top);
       try {
         // WebKit can release pointer capture when an active pointer's ancestor
@@ -579,16 +588,6 @@ export default class ToolbarPlus extends Plugin {
       }
       this.tick(18);
       if (i.previousMode === "floating") {
-        this.root.addClass("tp-can-dock");
-        const native = document.querySelector<HTMLElement>(".mobile-toolbar");
-        if (
-          native?.isConnected &&
-          document.body.classList.contains("mod-toolbar-open")
-        ) {
-          native.append(this.target);
-          this.target.addClass("tp-target-in-native");
-        }
-        this.target.setText("Dock toolbar");
         this.status.setText(
           "Moving. Release over the bottom target to dock the toolbar.",
         );
@@ -621,7 +620,9 @@ export default class ToolbarPlus extends Plugin {
         i.direction = dir;
         if (dir === "s") this.tick();
         this.status.setText(
-          dir === "s" ? "Release to hide keyboard" : "Swipe down to hide keyboard",
+          dir === "s"
+            ? "Release to hide keyboard"
+            : "Swipe down to hide keyboard",
         );
       }
       return;
@@ -673,11 +674,11 @@ export default class ToolbarPlus extends Plugin {
       this.placeHandle(e.clientX - i.offsetX, e.clientY - i.offsetY);
       this.config.mode = overTarget ? "docked" : "floating";
       const r = this.handle.getBoundingClientRect(),
-        b = this.bounds();
-      this.config.position = {
-        x: clamp((r.left - b.left - 8) / Math.max(1, b.width - 64), 0, 1),
-        y: clamp((r.top - b.top - 8) / Math.max(1, b.height - 80), 0, 1),
-      };
+        placement = this.placementSize();
+      this.config.position = normalizedFromPoint(
+        { x: r.left, y: r.top },
+        placement,
+      );
       this.persist();
     }
     this.finish();
@@ -718,8 +719,6 @@ export default class ToolbarPlus extends Plugin {
       "tp-gesturing",
       "tp-pressed",
     );
-    if (this.target.parentElement !== this.root) this.root.append(this.target);
-    this.target.removeClass("tp-target-in-native");
     this.target.removeClass("tp-over");
     this.grid
       .querySelectorAll(".tp-selected")
@@ -781,11 +780,9 @@ export default class ToolbarPlus extends Plugin {
     this.ui.unload();
     cancelAnimationFrame(this.frame);
     this.frame = 0;
-    if (this.bar?.parentElement !== this.root) this.root?.prepend(this.bar);
-    this.bar?.removeClass("tp-in-native");
+    this.host?.dispose();
+    this.host = undefined;
     this.root?.remove();
-    this.nativeBar?.classList.remove("tp-native-replaced");
-    this.nativeBar = null;
   }
   onunload() {
     this.disposed = true;

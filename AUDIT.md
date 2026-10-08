@@ -1,55 +1,48 @@
-# toolbar+ 0.1.16 release audit
+# toolbar+ 0.1.18 release audit
 
-Audit date: 2026-09-09
+Audit date: 2026-10-08
 
 ## Result
 
-The code and local release assets are ready for device acceptance. Public Community directory publication remains blocked until a matching GitHub release is published.
+Local release preparation includes the current source, runtime assets, and final-settings-save fix. The user reports that the current build looks fine on their iPhone. Android remains untested because no device is available; the user accepts that limitation. The existing GitHub repository is `woodamsclark/toolbar-plus` on branch `main`; no GitHub releases were listed when checked on 2026-10-08.
 
-## Completed checks
+## Automated validation
 
-- TypeScript compiles without errors.
-- All 31 automated behavior, lifecycle, settings, and persistence tests pass.
-- The installed `main.js` exactly matches a clean source build.
-- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.16.
-- The production bundle imports only `obsidian`; it contains no Node.js, Electron, development, network, telemetry, or self-update dependency.
-- `npm audit` reports zero known vulnerabilities across 81 development dependencies.
-- Rapid settings edits are coalesced; pending writes stop on unload.
-- DOM listeners, workspace events, observers, pointer state, animation frames, modals, and pickers are released on unload.
-- The keyboard regression covers this order: float, hide keyboard, manually dock, begin keyboard reopen, reattach native toolbar, restore toolbar+.
-- Docked toolbar+ is hosted inside Obsidian's positioned `.mobile-toolbar`; it performs no independent keyboard-position calculation.
-- The native toolbar's original children remain hidden while toolbar+ is active in either mode. The container remains active and owns the keyboard transition.
-- Floating mode moves toolbar+ back to its own root while keeping the original mobile toolbar suppressed; configuration and unload restore the native contents.
-- The floating-mode docking target temporarily uses the native toolbar container, keeping the target above the keyboard, and returns to toolbar+'s root after every completed or cancelled interaction.
-- A downward swipe on the docked tactile control uses Obsidian's keyboard-toggle command, falls back to the public editor API, and leaves the toolbar mode docked.
-- A docked long hold detaches without exposing a drop target; the target is available only for docking an already-floating control.
-- Document-level pointer tracking and post-transfer capture keep that drag active while the docked control moves out of Obsidian's native toolbar host; the hold requests one haptic pulse.
-- The settings page uses compact, flat rows with aligned controls and bounded slider widths on mobile.
-- Fresh installs use the current eight-direction floating gesture layout while the docked toolbar retains its own defaults.
-- Undo and Redo fall back to Obsidian's public editor API because Obsidian 1.13.7 omits those actions from its command list.
-- Desktop opt-out applies to docked and floating states.
-- The public display name is `toolbar+`; registry, folder, package, and archive identifiers use `toolbar-plus`.
-- The repository includes the official Mozilla Public License 2.0 text and declares `MPL-2.0` in package metadata.
-- `toolbar-plus` and `toolbar+` were not present in the current public Community plugins registry when checked.
+- TypeScript passes and all 47 behavior, lifecycle, settings, and persistence tests pass.
+- Installed `main.js` exactly matches the source build.
+- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.18 and minimum Obsidian 1.13.7.
+- The runtime bundle imports only `obsidian`, with no Node.js, Electron, or development-package imports.
+- Release packaging verifies each runtime file and ZIP entry against the current build. The ZIP contains exactly `main.js`, `manifest.json`, and `styles.css` inside the `toolbar-plus` folder.
+- Settings writes are serialized and coalesced. Unload rejects new edits while allowing the latest queued snapshot to drain, including after a failed earlier write. Regression coverage exercises both the writer and plugin unload.
+- An abrupt app/process termination can still interrupt asynchronous persistence; synchronous plugin unload cannot guarantee completion before process exit.
+- No fresh dependency vulnerability audit was performed for this release.
 
 ## Compatibility boundaries
 
-toolbar+ integrates with two Obsidian surfaces that do not have equivalent public APIs: the runtime command registry and the `.mobile-toolbar` element. Both are isolated behind guarded lookups and failure handling, but an Obsidian UI or internal registry change can require a compatibility update.
+The native `.mobile-toolbar` / `.mobile-toolbar-spacer` selectors, keyboard body class, and runtime command registry are internal Obsidian integration points. Host ownership is isolated in `MobileToolbarHost`; DOM/lifecycle tests cover host transitions, cleanup, command availability, keyboard events, and viewport geometry.
 
-Version 0.1.16 declares Obsidian 1.13.7 as its minimum because that is the validated local baseline. Lower Obsidian versions have not been claimed compatible.
+Floating mode detaches native toolbar and spacer elements and applies a scoped app-container height adjustment. These operations require real-device validation with the final build.
 
-## Required device acceptance
+The browser preview loads production styles and displays layout measurements against a simulated keyboard. It does not provide automated rectangle assertions or establish real iOS/Android keyboard behavior.
 
-Run these checks with the packaged 0.1.16 assets after they finish syncing:
+## Device acceptance status
 
-- iOS: swipe down on the docked tactile control to hide the keyboard, reopen it, then hold to detach and confirm no target appears. Rotate in both modes and test predictive text on and off.
-- Android: repeat the same sequence with the default keyboard and one alternate keyboard if available.
-- Desktop: enable Show on desktop, test docked and floating input with mouse or trackpad, then disable it and confirm the control disappears.
-- All platforms: reload the plugin, restart Obsidian, execute built-in and community-plugin commands, open and close both command pickers, and confirm settings persist.
+- iPhone: user-reported visual smoke check passed on 2026-10-08. This report does not establish that every scenario below was tested individually.
+- Android: untested; user accepts release without an Android check.
 
-## Public release blockers
+## Additional device checks
 
-1. Publish a GitHub release tagged `0.1.16` and attach `main.js`, `manifest.json`, and `styles.css` as individual assets.
-2. Run the Community directory preview scan, resolve any reported errors, and submit the repository through the Community directory.
+After the 0.1.18 runtime files finish syncing and the plugin is reloaded:
 
-The ZIP in `releases/0.1.16` is a convenient sideload artifact. Obsidian's Community release still requires the three runtime files as separate GitHub release assets.
+- iPhone: dock, hide/reopen the keyboard, detach, type to the keyboard boundary, reveal/cancel the docking target, and redock. Confirm there is no invisible toolbar row while floating.
+- Check portrait/landscape, light/dark themes, predictive text on/off, safe areas, and command-capsule scrolling.
+- Android: repeat with the default keyboard and an alternate keyboard if available.
+- Execute built-in and community-plugin commands while preserving editor selection and focus; check Insert alias with native autocomplete.
+- Disable/re-enable the plugin in both modes and confirm Obsidian's native toolbar is restored.
+- Change settings, reload the plugin, and restart Obsidian to verify persistence. Also test desktop with Show on desktop on/off.
+
+## Publication checklist
+
+The existing public repository is confirmed. Publish the final source and a matching `0.1.18` tag with individual `main.js`, `manifest.json`, and `styles.css` attachments. Address Community directory review results if submission is still needed.
+
+The local ZIP is a sideload artifact, not a replacement for the individual GitHub release attachments. Existing 0.1.17 artifacts are retained as historical packages; they do not match the current source.

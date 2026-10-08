@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.18 — release consistency and final settings saves
+
+- Preserve the latest queued settings snapshot when the plugin unloads, including after a failed earlier save. Reject new edits after unload.
+- Package the current native-toolbar host and viewport refactor, floating keyboard-clearance changes, and 42px docked toolbar.
+- Align the manifest, package metadata, compatibility map, release documentation, and runtime assets.
+- Verify packaged runtime files and ZIP contents against the source build.
+- iPhone visual smoke check passed according to the user. Android is untested; release proceeds with that known limitation.
+
 ## 0.1.16 — floating gesture defaults
 
 - Set the eight floating gesture defaults to the current toolbar+ layout: undo, command palette, redo, previous tab, next tab, copy, keyboard toggle, and paste.

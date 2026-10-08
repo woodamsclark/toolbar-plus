@@ -18,13 +18,14 @@ export class SettingsWriter {
     if (!this.writing) void this.flush();
   }
   close() {
+    // Reject new edits, but let the current write drain the latest snapshot.
+    // Obsidian unload is synchronous; dropping that snapshot loses edits.
     this.closed = true;
-    this.pending = undefined;
   }
   private async flush() {
     this.writing = true;
     try {
-      while (!this.closed && this.pending) {
+      while (this.pending) {
         const snapshot = this.pending;
         this.pending = undefined;
         try {

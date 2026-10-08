@@ -6,34 +6,73 @@
     <link rel="stylesheet" href="../styles.css" />
     <style>
       :root {
-        --background-primary: #242424;
-        --background-secondary: #1e1e1e;
-        --background-modifier-border: #414141;
-        --background-modifier-border-hover: #656565;
-        --background-modifier-hover: #333;
-        --text-normal: #ddd;
-        --text-muted: #aaa;
-        --text-faint: #777;
-        --text-accent: #bc9ddd;
-        --interactive-accent: #865da8;
-        --text-on-accent: #fff;
         --font-interface: system-ui;
         --font-ui-small: 13px;
         --font-ui-medium: 15px;
+        --mobile-toolbar-height: 40px;
+        --toolbar-option-width: 40px;
       }
       * {
         box-sizing: border-box;
       }
       body {
         margin: 0;
+        height: 100dvh;
+        overflow: hidden;
         background: var(--background-primary);
         color: var(--text-normal);
         font: 15px/1.5 system-ui;
       }
-      main {
-        max-width: 720px;
+      body.theme-dark {
+        --background-primary: #1e1e1e;
+        --background-secondary: #242424;
+        --background-modifier-border: #414141;
+        --background-modifier-border-hover: #656565;
+        --background-modifier-hover: #333;
+        --interactive-normal: #2c2c2c;
+        --text-normal: #e4e4e4;
+        --text-muted: #c3c3c3;
+        --text-faint: #777;
+        --text-accent: #bc9ddd;
+        --interactive-accent: #865da8;
+        --text-on-accent: #fff;
+        --shadow-s: 0 3px 14px rgb(0 0 0 / 38%);
+      }
+      body.theme-light {
+        --background-primary: #fff;
+        --background-secondary: #f6f6f7;
+        --background-modifier-border: #dedee2;
+        --background-modifier-border-hover: #b9b9bf;
+        --background-modifier-hover: #e8e8eb;
+        --interactive-normal: #fff;
+        --text-normal: #1f1f22;
+        --text-muted: #303034;
+        --text-faint: #85858d;
+        --text-accent: #6f3f93;
+        --interactive-accent: #865da8;
+        --text-on-accent: #fff;
+        --shadow-s: 0 4px 18px rgb(0 0 0 / 13%);
+      }
+      .fixture {
+        width: min(100%, 430px);
+        height: 100%;
         margin: auto;
-        padding: 40px 24px;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 278px;
+        overflow: hidden;
+        border-inline: 1px solid var(--background-modifier-border);
+      }
+      .fixture-app {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      main {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 26px 24px 8px;
       }
       header {
         font-size: 12px;
@@ -47,7 +86,7 @@
         font-size: 40px;
       }
       p {
-        color: #aaa;
+        color: var(--text-muted);
       }
       button {
         color: #ddd;
@@ -59,11 +98,79 @@
       }
       nav {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
       }
       #result {
         font-size: 12px;
-        color: #bc9ddd;
+        color: var(--text-accent);
+      }
+      #metrics {
+        position: sticky;
+        bottom: 0;
+        margin: 22px -8px 0;
+        padding: 8px;
+        background: color-mix(
+          in srgb,
+          var(--background-primary) 88%,
+          transparent
+        );
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 8px;
+        font:
+          11px/1.35 ui-monospace,
+          monospace;
+        color: var(--text-muted);
+      }
+      .fixture-tail {
+        margin-top: 32px;
+        padding-top: 12px;
+        border-top: 1px solid var(--background-modifier-border);
+      }
+      .mobile-toolbar {
+        display: flex;
+        align-items: center;
+        flex: 0 0 var(--mobile-toolbar-height);
+        min-height: var(--mobile-toolbar-height);
+        width: 100%;
+        background: var(--background-primary);
+      }
+      .fixture-native-options {
+        width: calc(100% - 16px);
+        height: var(--mobile-toolbar-height);
+        margin: 0 8px;
+        border-radius: 999px;
+        background: var(--interactive-normal);
+        border: 1px solid var(--background-modifier-border);
+      }
+      .fixture-keyboard {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        align-content: start;
+        gap: 7px 5px;
+        padding: 15px 7px 28px;
+        background: color-mix(
+          in srgb,
+          var(--background-secondary) 88%,
+          #aeb2bb
+        );
+        border-radius: 24px 24px 0 0;
+      }
+      .fixture-keyboard span {
+        display: grid;
+        place-items: center;
+        height: 43px;
+        border-radius: 7px;
+        background: var(--interactive-normal);
+        color: var(--text-normal);
+        box-shadow: 0 1px 1px #0003;
+        font-size: 19px;
+      }
+      .fixture-keyboard span:nth-last-child(2) {
+        grid-column: span 5;
+      }
+      .fixture-keyboard span:last-child {
+        grid-column: span 2;
       }
       .modal {
         position: fixed;
@@ -112,22 +219,43 @@
       }
     </style>
   </head>
-  <body class="mod-toolbar-open">
-    <div class="mobile-toolbar" aria-hidden="true"></div>
-    <main>
-      <header>toolbar+ · development preview</header>
-      <h1>A little grip.<br />Eight directions.</h1>
-      <p>Your familiar editing tools, with a handle that goes where you do.</p>
-      <nav>
-        <button id="configure">Configure</button
-        ><button id="float">Float</button><button id="dock">Dock</button>
-      </nav>
-      <p>
-        Hold the nine dots to lift the handle. Once floating, swipe immediately
-        to choose a command. Return to the center to cancel.
-      </p>
-      <p id="result" role="status">Ready to try.</p>
-    </main>
+  <body class="mod-toolbar-open theme-light">
+    <div class="fixture">
+      <section class="fixture-app">
+        <main id="editor">
+          <header>toolbar+ · mobile geometry fixture</header>
+          <h1>A little grip.<br />Eight directions.</h1>
+          <p>
+            Your familiar editing tools, with a handle that goes where you do.
+          </p>
+          <nav>
+            <button id="configure">Configure</button
+            ><button id="float">Float</button><button id="dock">Dock</button
+            ><button id="theme">Dark theme</button>
+          </nav>
+          <p>
+            Float must remove the entire native toolbar row. Dock must produce a
+            command capsule and an equal-height, separate tactile bubble.
+          </p>
+          <p class="fixture-tail">
+            This final line is the occlusion probe. In floating mode its editor
+            boundary must meet the synthetic keyboard with no invisible row.
+          </p>
+          <p id="result" role="status">Ready to try.</p>
+          <output id="metrics">Measuring…</output>
+        </main>
+        <div class="mobile-toolbar" aria-label="Native mobile toolbar host">
+          <div class="fixture-native-options"></div>
+        </div>
+      </section>
+      <div class="fixture-keyboard" aria-label="Synthetic keyboard">
+        <span>q</span><span>w</span><span>e</span><span>r</span><span>t</span
+        ><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span>
+        <span>a</span><span>s</span><span>d</span><span>f</span><span>g</span
+        ><span>h</span><span>j</span><span>k</span><span>l</span><span>⌫</span>
+        <span>123</span><span>☺</span><span>space</span><span>↵</span>
+      </div>
+    </div>
     <script type="module" src="preview.js"></script>
   </body>
 </html>
