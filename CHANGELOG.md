@@ -8,7 +8,7 @@
 - Apply floating app-height compensation only while the keyboard is open.
 - Restore the native row when the keyboard reopens.
 - Extend regression coverage to native row connectivity, not only toolbar+ visibility.
-- iPhone verification of this fix is pending.
+- The user verified the updated fix on iPhone. Android remains untested.
 
 ## 0.1.18 — release consistency and final settings saves
 

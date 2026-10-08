@@ -4,7 +4,7 @@ Audit date: 2026-10-08
 
 ## Result
 
-Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. The initial restoration guard was insufficient on iPhone because `mod-toolbar-open` can remain set after keyboard hide. The updated fix uses keyboard lifecycle events and height, suppresses the native row in a hidden docked state, and scopes app-height compensation to the open keyboard. Regression tests reproduced both failure paths before their fixes. iPhone verification of 0.1.19 is pending. Android remains untested; the user previously accepted that limitation. Version 0.1.18 is already published; 0.1.19 is a local release candidate.
+Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. The initial restoration guard was insufficient on iPhone because `mod-toolbar-open` can remain set after keyboard hide. The updated fix uses keyboard lifecycle events and height, suppresses the native row in a hidden docked state, and scopes app-height compensation to the open keyboard. Regression tests reproduced both failure paths before their fixes. The user confirmed the updated 0.1.19 fix works on iPhone on 2026-10-08. Android remains untested; the user previously accepted that limitation. Version 0.1.19 is prepared as the next release after 0.1.18.
 
 ## Automated validation
 
@@ -29,7 +29,7 @@ The browser preview loads production styles and displays layout measurements aga
 
 ## Device acceptance status
 
-- iPhone: initial 0.1.18 smoke check passed, then a keyboard-hidden docking regression was reported. The 0.1.19 fix requires a repeat of that exact sequence on iPhone.
+- iPhone: the user repeated the reported sequence with the updated 0.1.19 build and confirmed it works. Broader device scenarios below remain useful additional checks.
 - Android: untested; user accepts release without an Android check.
 
 ## Additional device checks
