@@ -15,7 +15,7 @@ Local release preparation includes the current source, runtime assets, and final
 - Release packaging verifies each runtime file and ZIP entry against the current build. The ZIP contains exactly `main.js`, `manifest.json`, and `styles.css` inside the `toolbar-plus` folder.
 - Settings writes are serialized and coalesced. Unload rejects new edits while allowing the latest queued snapshot to drain, including after a failed earlier write. Regression coverage exercises both the writer and plugin unload.
 - An abrupt app/process termination can still interrupt asynchronous persistence; synchronous plugin unload cannot guarantee completion before process exit.
-- No fresh dependency vulnerability audit was performed for this release.
+- A fresh dependency audit reports three development-dependency warnings: moderate findings for `moment` / the Obsidian SDK and a high finding for `source-map-js`. These packages are not bundled into the plugin; the runtime imports only the host-provided `obsidian` API. Development dependency updates remain separate maintenance work.
 
 ## Compatibility boundaries
 
