@@ -847,3 +847,88 @@ test("modal tabs preserve bindings, open in current mode, and support keyboard n
   assert.equal(h.p.ui.cleanups.length, 0);
   h.end();
 });
+
+test("iOS keyboard hide suppresses docked toolbar even while the native open marker remains set", async () => {
+  const h = harness();
+  const doc = h.w.document;
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  const native = doc.querySelector(".mobile-toolbar");
+  const spacer = doc.createElement("div");
+  spacer.className = "mobile-toolbar-spacer";
+  doc.body.insertBefore(spacer, native);
+  await h.start();
+  h.p.setMode("floating");
+  // On iOS, editor focus can keep mod-toolbar-open set after keyboard hide.
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  doc.documentElement.style.setProperty("--keyboard-height", "0px");
+  await h.settle();
+  assert.equal(doc.body.classList.contains("mod-toolbar-open"), true);
+  h.p.setMode("docked");
+  await h.settle();
+  assert.equal(h.p.root.hidden, true);
+  assert.equal(h.p.bar.hidden, true);
+  assert.equal(native.isConnected, false);
+  assert.equal(spacer.isConnected, false);
+
+  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  doc.body.append(spacer, native);
+  await h.settle();
+  assert.equal(h.p.root.hidden, false);
+  assert.equal(h.p.bar.parentElement, native);
+  h.end();
+});
+
+test("docked keyboard events hide and show the bar without body-class changes", async () => {
+  const h = harness();
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  assert.equal(h.p.root.hidden, true);
+  assert.equal(h.w.document.querySelector(".mobile-toolbar"), null);
+  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  await h.settle();
+  assert.equal(h.p.root.hidden, false);
+  h.end();
+});
+
+test("keyboard height changes update docking without native keyboard events", async () => {
+  const h = harness();
+  const doc = h.w.document;
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  await h.start();
+  doc.documentElement.style.setProperty("--keyboard-height", "0px");
+  await h.settle();
+  assert.equal(h.p.root.hidden, true);
+  assert.equal(doc.querySelector(".mobile-toolbar"), null);
+  assert.equal(
+    doc.documentElement.classList.contains("tp-mobile-keyboard-open"),
+    false,
+  );
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  await h.settle();
+  assert.equal(h.p.root.hidden, false);
+  assert.equal(
+    h.p.bar.parentElement.classList.contains("mobile-toolbar"),
+    true,
+  );
+  h.end();
+});
+
+test("production styles honor the hidden attribute on a reparented toolbar", () => {
+  const dom = new JSDOM(
+    '<body><div class="mobile-toolbar"><div class="tp-bar" hidden></div></div></body>',
+  );
+  const style = dom.window.document.createElement("style");
+  style.textContent = readFileSync(
+    new URL("../styles.css", import.meta.url),
+    "utf8",
+  );
+  dom.window.document.head.append(style);
+  assert.equal(
+    dom.window.getComputedStyle(dom.window.document.querySelector(".tp-bar"))
+      .display,
+    "none",
+  );
+  dom.window.close();
+});

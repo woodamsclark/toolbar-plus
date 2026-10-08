@@ -8,8 +8,9 @@
   font-family: var(--font-interface);
   font-size: var(--font-ui-small);
 }
-.toolbar-plus[hidden] {
-  display: none;
+.toolbar-plus[hidden],
+.tp-bar[hidden] {
+  display: none !important;
 }
 .tp-bar {
   --tp-height: 42px;
@@ -290,10 +291,10 @@ body:has(.toolbar-plus[data-tp-host-state="floating"]) .mobile-toolbar {
 /*
  * Obsidian's iOS keyboard layout keeps one native toolbar row reserved in the
  * app container after Toolbar+ detaches that row. Give that exact row back to
- * the editor while floating. Scoping this to mod-toolbar-open avoids changing
- * the ordinary full-height workspace or the docked toolbar layout.
+ * the editor while floating with an open keyboard. The keyboard marker avoids
+ * extending the app when iOS retains mod-toolbar-open after keyboard hide.
  */
-html.tp-mobile-toolbar-collapsed
+html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   body.is-mobile.mod-toolbar-open
   .app-container {
   height: calc(100% + var(--mobile-toolbar-height, 40px));

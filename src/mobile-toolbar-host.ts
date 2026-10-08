@@ -1,5 +1,5 @@
 export type MobileHostState =
-  "restored" | "docked" | "floating" | "dock-target";
+  "restored" | "docked" | "hidden" | "floating" | "dock-target";
 
 export interface DesiredHostStateInput {
   mobile: boolean;
@@ -27,6 +27,7 @@ export function desiredHostState({
       : "floating";
   if (movingFromDocked) return "floating";
   if (mode === "floating") return "floating";
+  if (!nativeToolbarOpen) return "hidden";
   return pluginVisible && nativeToolbarOpen && nativeHostAvailable
     ? "docked"
     : "restored";
@@ -46,6 +47,7 @@ export class MobileToolbarHost {
     nextSibling: Node | null;
   }[] = [];
   private state: MobileHostState = "restored";
+  private keyboardVisible?: boolean;
 
   constructor(
     doc: Document,
@@ -63,6 +65,23 @@ export class MobileToolbarHost {
     return (
       !!this.native && (this.native.isConnected || this.isDetached(this.native))
     );
+  }
+
+  // On iOS, the native toolbar marker follows editor focus, not necessarily
+  // software-keyboard visibility. Use keyboard lifecycle/height as well.
+  get nativeToolbarOpen() {
+    if (!this.doc.body.classList.contains("mod-toolbar-open")) return false;
+    if (this.keyboardVisible !== undefined) return this.keyboardVisible;
+    const height = parseFloat(
+      this.doc.defaultView
+        ?.getComputedStyle(this.doc.documentElement)
+        .getPropertyValue("--keyboard-height") ?? "",
+    );
+    return Number.isFinite(height) ? height > 0 : true;
+  }
+
+  setKeyboardVisible(visible: boolean) {
+    this.keyboardVisible = visible;
   }
 
   get currentState() {
@@ -103,6 +122,7 @@ export class MobileToolbarHost {
     this.doc.documentElement.classList.remove(
       MobileToolbarHost.collapsedDocumentClass,
     );
+    this.doc.documentElement.classList.remove("tp-mobile-keyboard-open");
     this.moveBarToOverlay();
     this.moveTargetToOverlay();
     this.restoreDetachedElements();
@@ -115,16 +135,20 @@ export class MobileToolbarHost {
     this.root.dataset.tpHostState = this.state;
     this.doc.documentElement.classList.toggle(
       MobileToolbarHost.collapsedDocumentClass,
-      this.state === "floating",
+      this.state === "floating" || this.state === "hidden",
     );
-    if (this.state === "floating") {
+    this.doc.documentElement.classList.toggle(
+      "tp-mobile-keyboard-open",
+      this.nativeToolbarOpen,
+    );
+    if (this.state === "floating" || this.state === "hidden") {
       this.moveBarToOverlay();
       this.moveTargetToOverlay();
       const native = this.native;
-      if (native?.isConnected) {
+      if (native) {
         native.dataset.tpHostState = this.state;
         native.classList.add("tp-native-replaced", "tp-native-collapsed");
-        this.detach(native);
+        if (native.isConnected) this.detach(native);
       }
       this.doc
         .querySelectorAll<HTMLElement>(".mobile-toolbar-spacer")
@@ -197,10 +221,9 @@ export class MobileToolbarHost {
 
   private restoreDetachedElements() {
     // Obsidian hide() may run while these elements are already detached by
-    // toolbar+. Its body marker is the observable authority for restoring the
-    // row; saved parents alone would resurrect a keyboard-hidden toolbar.
-    const nativeToolbarOpen =
-      this.doc.body.classList.contains("mod-toolbar-open");
+    // toolbar+. Both its toolbar marker and keyboard visibility must allow
+    // restoration; saved parents alone resurrect a keyboard-hidden row.
+    const nativeToolbarOpen = this.nativeToolbarOpen;
     for (const { element, parent, nextSibling } of this.detachedElements
       .slice()
       .reverse()) {

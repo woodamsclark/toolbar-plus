@@ -307,6 +307,28 @@ export default class ToolbarPlus extends Plugin {
       if (e.key === "Escape") this.cancel();
     });
     this.ui.registerDomEvent(window, "blur", () => this.cancel());
+    if (Platform.isMobile) {
+      const showKeyboard = () => {
+        this.host?.setKeyboardVisible(true);
+        this.cancel();
+        this.scheduleKeyboardLayout();
+      };
+      const hideKeyboard = (event: Event) => {
+        const physicalKeyboard =
+          (event as Event & { hasPhysicalKeyboard?: boolean })
+            .hasPhysicalKeyboard === true;
+        this.host?.setKeyboardVisible(physicalKeyboard);
+        this.cancel();
+        this.scheduleKeyboardLayout();
+      };
+      // Native mobile events are not part of TypeScript's WindowEventMap.
+      window.addEventListener("keyboardWillShow", showKeyboard);
+      window.addEventListener("keyboardWillHide", hideKeyboard);
+      this.ui.register(() => {
+        window.removeEventListener("keyboardWillShow", showKeyboard);
+        window.removeEventListener("keyboardWillHide", hideKeyboard);
+      });
+    }
     this.ui.registerDomEvent(document, "visibilitychange", () => {
       if (document.hidden) this.cancel();
     });
@@ -352,6 +374,10 @@ export default class ToolbarPlus extends Plugin {
       keyboardObserver.observe(document.body, {
         attributes: true,
         attributeFilter: ["class"],
+      });
+      keyboardObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["style"],
       });
       this.ui.register(() => keyboardObserver.disconnect());
       const observer = new MutationObserver((records) => {
@@ -407,8 +433,7 @@ export default class ToolbarPlus extends Plugin {
     const active = this.app.workspace.getActiveViewOfType(MarkdownView);
     this.host?.refreshNativeHost();
     const nativeAvailable = this.host?.hasNativeHost ?? false;
-    const nativeToolbarOpen =
-      document.body.classList.contains("mod-toolbar-open");
+    const nativeToolbarOpen = this.host?.nativeToolbarOpen ?? false;
     const dockedVisible = Platform.isMobile
       ? nativeAvailable && nativeToolbarOpen
       : this.config.desktop && !!active;

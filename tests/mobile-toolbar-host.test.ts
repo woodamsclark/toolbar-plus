@@ -42,6 +42,10 @@ test("desired host state covers dock, float, movement, and unavailable hosts", (
   );
   assert.equal(desiredHostState({ ...base, pluginVisible: false }), "restored");
   assert.equal(desiredHostState({ ...base, mobile: false }), "restored");
+  assert.equal(
+    desiredHostState({ ...base, nativeToolbarOpen: false }),
+    "hidden",
+  );
 });
 
 test("one host controller owns every bar and target transition", () => {
@@ -166,4 +170,26 @@ test("closing the keyboard while floating does not resurrect the native row on d
     }
     dom.window.close();
   }
+});
+
+test("zero keyboard height prevents native row restoration despite a stale toolbar-open marker", () => {
+  const dom = new JSDOM(
+    '<body class="mod-toolbar-open"><main><div class="mobile-toolbar-spacer"></div><div class="mobile-toolbar"></div></main><div id="root"><div id="bar"></div><div id="target"></div></div></body>',
+  );
+  const doc = dom.window.document;
+  const host = new MobileToolbarHost(
+    doc,
+    doc.querySelector<HTMLElement>("#root")!,
+    doc.querySelector<HTMLElement>("#bar")!,
+    doc.querySelector<HTMLElement>("#target")!,
+  );
+  const native = doc.querySelector<HTMLElement>(".mobile-toolbar")!;
+  const spacer = doc.querySelector<HTMLElement>(".mobile-toolbar-spacer")!;
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  host.reconcile("floating");
+  doc.documentElement.style.setProperty("--keyboard-height", "0px");
+  host.dispose();
+  assert.equal(native.isConnected, false);
+  assert.equal(spacer.isConnected, false);
+  dom.window.close();
 });

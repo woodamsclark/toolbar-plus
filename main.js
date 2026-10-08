@@ -207,6 +207,7 @@ function desiredHostState({
     return nativeToolbarOpen && nativeHostAvailable ? "dock-target" : "floating";
   if (movingFromDocked) return "floating";
   if (mode === "floating") return "floating";
+  if (!nativeToolbarOpen) return "hidden";
   return pluginVisible && nativeToolbarOpen && nativeHostAvailable ? "docked" : "restored";
 }
 var _MobileToolbarHost = class _MobileToolbarHost {
@@ -221,6 +222,20 @@ var _MobileToolbarHost = class _MobileToolbarHost {
   }
   get hasNativeHost() {
     return !!this.native && (this.native.isConnected || this.isDetached(this.native));
+  }
+  // On iOS, the native toolbar marker follows editor focus, not necessarily
+  // software-keyboard visibility. Use keyboard lifecycle/height as well.
+  get nativeToolbarOpen() {
+    var _a, _b;
+    if (!this.doc.body.classList.contains("mod-toolbar-open")) return false;
+    if (this.keyboardVisible !== void 0) return this.keyboardVisible;
+    const height = parseFloat(
+      (_b = (_a = this.doc.defaultView) == null ? void 0 : _a.getComputedStyle(this.doc.documentElement).getPropertyValue("--keyboard-height")) != null ? _b : ""
+    );
+    return Number.isFinite(height) ? height > 0 : true;
+  }
+  setKeyboardVisible(visible) {
+    this.keyboardVisible = visible;
   }
   get currentState() {
     return this.state;
@@ -253,6 +268,7 @@ var _MobileToolbarHost = class _MobileToolbarHost {
     this.doc.documentElement.classList.remove(
       _MobileToolbarHost.collapsedDocumentClass
     );
+    this.doc.documentElement.classList.remove("tp-mobile-keyboard-open");
     this.moveBarToOverlay();
     this.moveTargetToOverlay();
     this.restoreDetachedElements();
@@ -264,16 +280,20 @@ var _MobileToolbarHost = class _MobileToolbarHost {
     this.root.dataset.tpHostState = this.state;
     this.doc.documentElement.classList.toggle(
       _MobileToolbarHost.collapsedDocumentClass,
-      this.state === "floating"
+      this.state === "floating" || this.state === "hidden"
     );
-    if (this.state === "floating") {
+    this.doc.documentElement.classList.toggle(
+      "tp-mobile-keyboard-open",
+      this.nativeToolbarOpen
+    );
+    if (this.state === "floating" || this.state === "hidden") {
       this.moveBarToOverlay();
       this.moveTargetToOverlay();
       const native2 = this.native;
-      if (native2 == null ? void 0 : native2.isConnected) {
+      if (native2) {
         native2.dataset.tpHostState = this.state;
         native2.classList.add("tp-native-replaced", "tp-native-collapsed");
-        this.detach(native2);
+        if (native2.isConnected) this.detach(native2);
       }
       this.doc.querySelectorAll(".mobile-toolbar-spacer").forEach((spacer) => this.detach(spacer));
       return;
@@ -334,7 +354,7 @@ var _MobileToolbarHost = class _MobileToolbarHost {
     element.remove();
   }
   restoreDetachedElements() {
-    const nativeToolbarOpen = this.doc.body.classList.contains("mod-toolbar-open");
+    const nativeToolbarOpen = this.nativeToolbarOpen;
     for (const { element, parent, nextSibling } of this.detachedElements.slice().reverse()) {
       if (nativeToolbarOpen && !element.isConnected && parent.isConnected) {
         parent.insertBefore(
@@ -653,6 +673,27 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       if (e.key === "Escape") this.cancel();
     });
     this.ui.registerDomEvent(window, "blur", () => this.cancel());
+    if (import_obsidian.Platform.isMobile) {
+      const showKeyboard = () => {
+        var _a2;
+        (_a2 = this.host) == null ? void 0 : _a2.setKeyboardVisible(true);
+        this.cancel();
+        this.scheduleKeyboardLayout();
+      };
+      const hideKeyboard = (event) => {
+        var _a2;
+        const physicalKeyboard = event.hasPhysicalKeyboard === true;
+        (_a2 = this.host) == null ? void 0 : _a2.setKeyboardVisible(physicalKeyboard);
+        this.cancel();
+        this.scheduleKeyboardLayout();
+      };
+      window.addEventListener("keyboardWillShow", showKeyboard);
+      window.addEventListener("keyboardWillHide", hideKeyboard);
+      this.ui.register(() => {
+        window.removeEventListener("keyboardWillShow", showKeyboard);
+        window.removeEventListener("keyboardWillHide", hideKeyboard);
+      });
+    }
     this.ui.registerDomEvent(document, "visibilitychange", () => {
       if (document.hidden) this.cancel();
     });
@@ -699,6 +740,10 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
       keyboardObserver.observe(document.body, {
         attributes: true,
         attributeFilter: ["class"]
+      });
+      keyboardObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["style"]
       });
       this.ui.register(() => keyboardObserver.disconnect());
       const observer = new MutationObserver((records) => {
@@ -748,26 +793,26 @@ var ToolbarPlus = class extends import_obsidian.Plugin {
     this.scheduleLayout();
   }
   layout() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     if (this.disposed || !this.ready) return;
     const b = this.bounds();
     const active = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
     (_a = this.host) == null ? void 0 : _a.refreshNativeHost();
     const nativeAvailable = (_c = (_b = this.host) == null ? void 0 : _b.hasNativeHost) != null ? _c : false;
-    const nativeToolbarOpen = document.body.classList.contains("mod-toolbar-open");
+    const nativeToolbarOpen = (_e = (_d = this.host) == null ? void 0 : _d.nativeToolbarOpen) != null ? _e : false;
     const dockedVisible = import_obsidian.Platform.isMobile ? nativeAvailable && nativeToolbarOpen : this.config.desktop && !!active;
     const visible = !this.suspended && (import_obsidian.Platform.isMobile || this.config.desktop) && (this.config.mode === "floating" || this.config.mode === "docked" && dockedVisible);
     if (!visible && this.interaction) this.finish();
     this.root.hidden = !visible;
     this.bar.hidden = !visible;
-    const moving = ((_d = this.interaction) == null ? void 0 : _d.kind) === "moving";
-    (_g = this.host) == null ? void 0 : _g.reconcile(
+    const moving = ((_f = this.interaction) == null ? void 0 : _f.kind) === "moving";
+    (_i = this.host) == null ? void 0 : _i.reconcile(
       desiredHostState({
         mobile: import_obsidian.Platform.isMobile,
         mode: this.config.mode,
         pluginVisible: visible,
-        movingFromDocked: moving && ((_e = this.interaction) == null ? void 0 : _e.previousMode) === "docked",
-        movingFromFloating: moving && ((_f = this.interaction) == null ? void 0 : _f.previousMode) === "floating",
+        movingFromDocked: moving && ((_g = this.interaction) == null ? void 0 : _g.previousMode) === "docked",
+        movingFromFloating: moving && ((_h = this.interaction) == null ? void 0 : _h.previousMode) === "floating",
         nativeToolbarOpen,
         nativeHostAvailable: nativeAvailable
       })

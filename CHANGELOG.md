@@ -3,7 +3,10 @@
 ## 0.1.19 — keyboard-hidden docking
 
 - Keep Obsidian's native toolbar and spacer detached when docking or unloading after hiding the keyboard in floating mode.
-- Let Obsidian restore the native row when the keyboard reopens.
+- Use native keyboard show/hide events and `--keyboard-height` alongside the native toolbar marker; on iOS the marker can stay set after the keyboard retracts.
+- Suppress the native row while docked with the keyboard hidden, and honor the bar's hidden attribute after reparenting.
+- Apply floating app-height compensation only while the keyboard is open.
+- Restore the native row when the keyboard reopens.
 - Extend regression coverage to native row connectivity, not only toolbar+ visibility.
 - iPhone verification of this fix is pending.
 

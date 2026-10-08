@@ -4,11 +4,11 @@ Audit date: 2026-10-08
 
 ## Result
 
-Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. Local regression tests reproduced the failure before the fix. iPhone verification of 0.1.19 is pending. Android remains untested; the user previously accepted that limitation. Version 0.1.18 is already published; 0.1.19 is a local release candidate.
+Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. The initial restoration guard was insufficient on iPhone because `mod-toolbar-open` can remain set after keyboard hide. The updated fix uses keyboard lifecycle events and height, suppresses the native row in a hidden docked state, and scopes app-height compensation to the open keyboard. Regression tests reproduced both failure paths before their fixes. iPhone verification of 0.1.19 is pending. Android remains untested; the user previously accepted that limitation. Version 0.1.18 is already published; 0.1.19 is a local release candidate.
 
 ## Automated validation
 
-- TypeScript passes and all 48 behavior, lifecycle, settings, and persistence tests pass.
+- TypeScript passes and all 53 behavior, lifecycle, settings, and persistence tests pass.
 - Installed `main.js` exactly matches the source build.
 - Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.19 and minimum Obsidian 1.13.7.
 - The runtime bundle imports only `obsidian`, with no Node.js, Electron, or development-package imports.
