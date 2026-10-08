@@ -1,6 +1,6 @@
 # toolbar+ design document
 
-**Implementation baseline:** 0.1.19 (`toolbar-plus` plugin ID), targeting Obsidian 1.13.7 and later.
+**Implementation baseline:** 0.1.20 (`toolbar-plus` plugin ID), targeting Obsidian 1.13.7 and later.
 
 **Current refactor proposal:** [`native-toolbar-host-refactor.md`](native-toolbar-host-refactor.md) documents the implementation-ready correction for native-host ownership, reparented CSS, rendered visual coverage, and the unresolved physical-device clearance failure.
 
@@ -166,8 +166,6 @@ or overlay root  (model)   command/API
 
 On mobile in docked mode, toolbar+ appends its bar inside Obsidian's `.mobile-toolbar` container. Its command region and trailing handle mirror the native mobile toolbar structure, sizing hooks, and theme surfaces. CSS hides the native container's original children while leaving the host alive, letting Obsidian continue to manage keyboard position and animation.
 
-When docking with the keyboard hidden, the selected docked mode is saved but the toolbar stays hidden until Obsidian reopens its native toolbar. Detached native toolbar and spacer elements must not be reinserted while the keyboard is closed, including during unload. On iOS, `mod-toolbar-open` follows editor focus and may remain set after keyboard hide; native keyboard lifecycle events and the root `--keyboard-height` property gate visibility and restoration. A hidden docked state suppresses both the native row and spacer. Floating app-height compensation also requires an open keyboard. Obsidian owns their reattachment when the keyboard opens.
-
 In floating mode, the bar returns to toolbar+'s own fixed overlay and the suppressed native mobile-toolbar host is collapsed so it reserves no editor height. Holding the floating control temporarily restores that host only when it is available as the keyboard-aware docking target; cancelling or placing the control outside the target collapses it again. On desktop, the native host is not used; visibility is controlled by the `Show on desktop` setting and active Markdown view.
 
 The layout reads `window.visualViewport` where available. Fixed coordinates use visual-viewport-local positioning; safe-area padding and bounds clamp the control so it remains reachable through resize, rotation, and keyboard changes.
@@ -245,3 +243,29 @@ Before presenting a build as mobile-released, verify on real iOS and Android dev
 | `tests/`                      | Model, host transitions, viewport math, lifecycle, persistence, alias, and rendered fixture.       |
 | `scripts/verify-build.mjs`    | Metadata/build/runtime-dependency consistency verification.                                        |
 | `scripts/package-release.mjs` | Three-file release packaging and SHA-256 manifest generation.                                      |
+
+## Obsidian checker compatibility (0.1.20)
+
+The settings tab supplies searchable `getSettingDefinitions()` groups. Control values use the plugin's `config` and serialized settings writer; changing desktop visibility refreshes the toolbar immediately. Slider values display inline with milliseconds or pixels.
+
+Runtime positioning uses Obsidian's `setCssProps` and `setCssStyles` helpers. Frame scheduling and timeout cancellation use `window`. Production CSS uses scoped selectors without `!important`, `:has`, `display: contents`, or `clip-path`; the floating handle remains fixed inside a zero-size slot. The native host's document marker owns suppression of the toolbar row.
+
+Keyboard-hidden docking retains the released 0.1.19 contract: keyboard lifecycle events and `--keyboard-height` complement `mod-toolbar-open`, and native rows stay detached until the keyboard reopens.
+
+GitHub tag releases build and validate source, generate artifact attestations, and upload only `main.js`, `manifest.json`, and `styles.css`. Local ZIPs, checksums, and documentation remain sideload/audit material and are excluded from GitHub release attachments. Attestations require an actual GitHub Actions run and cannot be verified from local packaging alone.
+
+### Docked keyboard opening timing
+
+The hidden-keyboard restoration work in 0.1.19 treated `keyboardWillShow` as visible immediately, so it could restore the native row and reveal toolbar+ before the keyboard finished rising. A completion-only guard removed that early appearance but still made the toolbar appear abruptly. The user requested an upward slide during opening instead.
+
+When a previously hidden docked toolbar receives `keyboardWillShow` with a finite, positive `keyboardHeight`, it starts below the visible bottom edge and animates into an estimated docked position. The same bar stays in the fixed overlay for the 380ms entrance, using `cubic-bezier(0.2, 0.7, 0.3, 1)`. Its target uses the full placement height minus the event's keyboard height and the bar height. Subsequent viewport changes do not move that target or restart the animation. Native toolbar/spacer rows remain suppressed throughout opening, including rows Obsidian reattaches early.
+
+`keyboardDidShow` removes the entrance and returns the bar to Obsidian's native docked row. Hiding the keyboard, switching modes, configuring commands, or unloading clears the entrance. The moving bar ignores pointer gestures. A will-show event while already open does not replay the entrance. Floating controls remain independent.
+
+Without a usable keyboard height, the toolbar waits for completion. With reduced motion enabled, CSS suppresses the entrance and reveals the native row at completion. Keyboard height/body markers remain the fallback when native lifecycle events are absent. Native events expose target height and start/end notifications, rather than the keyboard's exact animation duration/easing; the 380ms timing is an approximation requiring iPhone tuning.
+
+Regression coverage verifies the earlier pop-in path, early native-row reattachment, overlay trajectory and target stability, completion handoff, cancellation, mode/configuration/unload cleanup, invalid height fallback, and already-open frame changes. A rendered 390×844 fixture measured a monotonic upward trajectory from y=844 to y=524 before completion, followed by the 42px native docked row. This validates browser presentation; the user subsequently confirmed physical iPhone keyboard synchronization.
+
+### iOS acceptance
+
+The iPhone report identified the failed opening gate: `keyboardWillShow` carried height 308 while the hidden docked bar had no native host. Obsidian created the host before `keyboardDidShow`, 378ms later. The overlay entrance starts without a native host; a host arriving during the slide stays suppressed until completion. Entrance timing is 380ms, approximating this observed opening interval. Same-tick will/did notifications and already-visible frame changes do not create a new slide. The native completion event still owns final docking. The user confirmed on iPhone that this slide works great. The temporary device-report command and event logging were removed before publication.

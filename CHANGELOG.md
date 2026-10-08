@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.20 — Obsidian checker compatibility
+
+- Slide a hidden docked toolbar upward during keyboard opening when the event supplies a valid height, then hand it back to the native row on `keyboardDidShow`. Keep native rows suppressed during the slide, clear interrupted entrances, preserve visible toolbars during frame changes, and honor reduced motion. Start even when iOS has not created its native toolbar yet. The 380ms entrance approximates the observed iPhone opening interval and was verified by the user on iPhone.
+
+- Use Obsidian CSS helpers for runtime positioning and window-qualified frame/timer APIs.
+- Expose all settings to Obsidian settings search through declarative definitions, retaining plugin-owned persistence and immediate desktop visibility changes.
+- Show slider values inline and remove an unnecessary type assertion.
+- Replace `!important`, `:has`, `display: contents`, and `clip-path` with scoped selectors and compatible layout rules; retain 42px docked and 48px floating controls.
+- Add a tag-triggered GitHub release workflow that builds, validates, and attests the three supported Obsidian assets; keep ZIPs and checksums local.
+- Align the live source with the released 0.1.19 keyboard fixes before rebuilding.
+
 ## 0.1.19 — keyboard-hidden docking
 
 - Keep Obsidian's native toolbar and spacer detached when docking or unloading after hiding the keyboard in floating mode.

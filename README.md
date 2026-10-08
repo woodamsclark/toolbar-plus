@@ -28,7 +28,9 @@ Settings include grid visibility, optional vibration, hold duration (300–1200 
 
 ## Compatibility
 
-Version **0.1.19** requires Obsidian 1.13.7 or later. The keyboard-hidden docking fix in 0.1.19 was verified on iPhone by the user. Android has not been tested.
+Version **0.1.20** requires Obsidian 1.13.7 or later. The docked toolbar slides upward during keyboard opening, then returns to Obsidian’s native toolbar at completion. The slide and keyboard-hidden docking were verified on iPhone by the user. Android has not been tested.
+
+Settings support Obsidian’s settings search. Tagged releases publish only `main.js`, `manifest.json`, and `styles.css`, with GitHub artifact attestations for their provenance.
 
 ## License
 

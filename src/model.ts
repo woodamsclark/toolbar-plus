@@ -95,7 +95,7 @@ export function normalize(raw: unknown): Config {
       .slice(0, 40)
       .map((b) => ({ ...b }));
   for (const dir of directions)
-    if (valid(r.gestures?.[dir])) d.gestures[dir] = { ...r.gestures![dir] };
+    if (valid(r.gestures?.[dir])) d.gestures[dir] = { ...r.gestures[dir] };
   for (const key of ["haptics", "showGrid", "desktop"] as const)
     if (typeof r[key] === "boolean") d[key] = r[key];
   if (Number.isFinite(r.holdMs)) d.holdMs = clamp(r.holdMs!, 300, 1200);

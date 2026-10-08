@@ -30,6 +30,13 @@ proto.toggleClass = function (c: string, v: boolean) {
 proto.setText = function (s: string) {
   this.textContent = s;
 };
+proto.setCssProps = function (props: Record<string, string>) {
+  for (const [key, value] of Object.entries(props))
+    this.style.setProperty(key, value);
+};
+proto.setCssStyles = function (styles: Partial<CSSStyleDeclaration>) {
+  Object.assign(this.style, styles);
+};
 let ready: () => void;
 const commands = [
   ["undo", "Undo"],
@@ -114,3 +121,40 @@ new ResizeObserver(measureNextFrame).observe(
   document.querySelector(".fixture")!,
 );
 measureNextFrame();
+
+// Exercise the production entrance and retain rendered frame measurements.
+document.querySelector("#keyboard")!.addEventListener("click", () => {
+  p.setMode("docked");
+  window.dispatchEvent(new Event("keyboardWillHide"));
+  const keyboard = document.querySelector<HTMLElement>(".fixture-keyboard")!;
+  keyboard.setCssStyles({ visibility: "hidden" });
+  const frames: { time: number; top: number; native: boolean }[] = [];
+  window.requestAnimationFrame(() => {
+    const opening = new Event("keyboardWillShow");
+    Object.assign(opening, {
+      keyboardHeight: keyboard.getBoundingClientRect().height,
+    });
+    window.dispatchEvent(opening);
+    const started = performance.now();
+    const sample = () => {
+      const bar = document.querySelector<HTMLElement>(".tp-bar")!;
+      const elapsed = performance.now() - started;
+      frames.push({
+        time: Math.round(elapsed),
+        top: Math.round(bar.getBoundingClientRect().top),
+        native: bar.classList.contains("tp-in-native"),
+      });
+      if (elapsed < 420) window.requestAnimationFrame(sample);
+      else {
+        keyboard.setCssStyles({ visibility: "visible" });
+        window.dispatchEvent(new Event("keyboardDidShow"));
+        window.requestAnimationFrame(() => {
+          measure();
+          document.querySelector("#animation-metrics")!.textContent =
+            JSON.stringify(frames);
+        });
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
+});

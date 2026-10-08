@@ -1,23 +1,27 @@
-# toolbar+ 0.1.19 release audit
+# toolbar+ 0.1.20 release audit
 
 Audit date: 2026-10-08
 
 ## Result
 
-Version 0.1.19 fixes a reported iPhone regression: floating, hiding the keyboard, then docking resurrected Obsidian's native toolbar and spacer at the bottom of the screen. The initial restoration guard was insufficient on iPhone because `mod-toolbar-open` can remain set after keyboard hide. The updated fix uses keyboard lifecycle events and height, suppresses the native row in a hidden docked state, and scopes app-height compensation to the open keyboard. Regression tests reproduced both failure paths before their fixes. The user confirmed the updated 0.1.19 fix works on iPhone on 2026-10-08. Android remains untested; the user previously accepted that limitation. Version 0.1.19 is prepared as the next release after 0.1.18.
+The local 0.1.20 build addresses the supplied Obsidian checker feedback. The source includes the released 0.1.19 keyboard lifecycle and hidden-docking fixes, which were missing from the live source while its generated bundle was current. The public repository and 0.1.19 release were inspected on 2026-10-08. Version 0.1.20 has not been published; its GitHub Actions workflow has not run, so attestations remain unverified.
+
+The existing 0.1.19 release still has the checker-reported ZIP and checksum attachments. The new workflow uploads only the three supported assets; it does not change historical releases.
 
 ## Automated validation
 
-- TypeScript passes and all 53 behavior, lifecycle, settings, and persistence tests pass.
+- TypeScript passes and all 62 behavior, lifecycle, settings, and persistence tests pass.
 - Installed `main.js` exactly matches the source build.
-- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.19 and minimum Obsidian 1.13.7.
+- Manifest, package lock, package metadata, and `versions.json` agree on version 0.1.20 and minimum Obsidian 1.13.7.
 - The runtime bundle imports only `obsidian`, with no Node.js, Electron, or development-package imports.
 - Release packaging verifies each runtime file and ZIP entry against the current build. The ZIP contains exactly `main.js`, `manifest.json`, and `styles.css` inside the `toolbar-plus` folder.
 - Settings writes are serialized and coalesced. Unload rejects new edits while allowing the latest queued snapshot to drain, including after a failed earlier write. Regression coverage exercises both the writer and plugin unload.
 - An abrupt app/process termination can still interrupt asynchronous persistence; synchronous plugin unload cannot guarantee completion before process exit.
-- A fresh dependency audit reports three development-dependency warnings: moderate findings for `moment` / the Obsidian SDK and a high finding for `source-map-js`. These packages are not bundled into the plugin; the runtime imports only the host-provided `obsidian` API. Development dependency updates remain separate maintenance work.
-
-- Keyboard-hidden docking and unload leave the native toolbar and spacer detached. Reopening the keyboard lets Obsidian reattach them and restores the docked plugin toolbar. Tests cover both host ownership and the full plugin lifecycle.
+- Obsidian's official ESLint plugin 0.4.0 and TypeScript assertion rule report zero findings for the supplied code-rule categories: CSS assignment, window timers, setting definitions, deprecated settings display, and unnecessary assertions. Checker dependencies were installed only in a temporary folder.
+- Production CSS contains no `!important`, `:has`, `display: contents`, or `clip-path`; deprecated dynamic slider tooltips are absent from the source.
+- Keyboard-opening regression coverage verifies overlay entrance geometry, stable targets through viewport changes, native-row suppression, completion handoff, cancellation, mode/configuration/unload cleanup, invalid-height fallback, and already-open frame changes. The browser fixture measured a monotonic slide from y=844 to y=524 at 390×844, with native rows suppressed until completion.
+- Declarative settings tests cover search definitions, plugin-owned persistence, validation bounds, immediate desktop visibility, and command editor / position actions.
+- The clean locked dependency install reports three development-dependency vulnerabilities (two moderate, one high). These dependencies are absent from the runtime bundle, which imports only Obsidian.
 
 ## Compatibility boundaries
 
@@ -25,16 +29,17 @@ The native `.mobile-toolbar` / `.mobile-toolbar-spacer` selectors, keyboard body
 
 Floating mode detaches native toolbar and spacer elements and applies a scoped app-container height adjustment. These operations require real-device validation with the final build.
 
-The browser preview loads production styles and displays layout measurements against a simulated keyboard. It does not provide automated rectangle assertions or establish real iOS/Android keyboard behavior.
+The browser preview loads production styles and displays layout measurements against a simulated keyboard. Visual inspection and fixture measurements verify the local CSS at phone size; they do not establish real iOS/Android keyboard behavior.
 
 ## Device acceptance status
 
-- iPhone: the user repeated the reported sequence with the updated 0.1.19 build and confirmed it works. Broader device scenarios below remain useful additional checks.
-- Android: untested; user accepts release without an Android check.
+- Browser preview: checked at 390×844 in light and dark themes. The docked bar, command capsule, and handle measure 42px; the floating handle measures 48×48px, native toolbar rows are detached, and the fixture reports zero editor gap.
+- iPhone: the user reports that 0.1.20 still looks good, but observed the docked toolbar appearing before the keyboard finished rising. The user then requested a slide during opening. The rebuilt 0.1.20 now animates in the overlay and returns to native docking at completion; the user reports no change on iOS. Browser animation success did not establish that the real iOS event reaches the entrance gate. The on-device report identified the failed gate: the native host was absent during will-show and available by did-show, 378ms later. The corrected build starts its overlay slide without requiring that host and uses a 380ms approximation. The user confirmed on iPhone that the corrected slide works great. Temporary device-report support was removed before publication. The public 0.1.19 audit records earlier verification of keyboard-hidden docking.
+- Android: untested; the earlier acceptance of this limitation does not establish device coverage for 0.1.20.
 
 ## Additional device checks
 
-After the 0.1.19 runtime files finish syncing and the plugin is reloaded:
+After the 0.1.20 runtime files finish syncing and the plugin is reloaded:
 
 - iPhone: dock, hide/reopen the keyboard, detach, type to the keyboard boundary, reveal/cancel the docking target, and redock. Confirm there is no invisible toolbar row while floating.
 - Check portrait/landscape, light/dark themes, predictive text on/off, safe areas, and command-capsule scrolling.
@@ -45,6 +50,8 @@ After the 0.1.19 runtime files finish syncing and the plugin is reloaded:
 
 ## Publication checklist
 
-The existing public repository is confirmed. Publish the final source and a matching `0.1.19` tag with individual `main.js`, `manifest.json`, and `styles.css` attachments. Address Community directory review results if submission is still needed.
+The existing public repository is confirmed. After smoke-testing the new build, publish the final source and matching `0.1.20` tag. `.github/workflows/release.yml` validates the tag, installs locked dependencies, builds/tests/packages, attests `main.js`, `manifest.json`, and `styles.css`, then publishes only those assets. ZIPs, checksums, and audit documents stay local. The workflow syntax was parsed locally; execution and attestation verification require GitHub Actions.
+
+Verify the downloaded assets with `gh attestation verify <file> --repo woodamsclark/toolbar-plus`. Address Community directory review results after publishing if needed.
 
 The local ZIP is a sideload artifact, not a replacement for the individual GitHub release attachments. Existing 0.1.17 artifacts are retained as historical packages; they do not match the current source.

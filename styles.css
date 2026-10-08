@@ -9,8 +9,8 @@
   font-size: var(--font-ui-small);
 }
 .toolbar-plus[hidden],
-.tp-bar[hidden] {
-  display: none !important;
+body .tp-bar[hidden] {
+  display: none;
 }
 .tp-bar {
   --tp-height: 42px;
@@ -52,22 +52,42 @@
   margin: 0 8px;
   transition: none;
 }
-.tp-bar.tp-in-native .tp-commands,
-.tp-bar.tp-in-native .tp-handle-slot,
-.tp-bar.tp-in-native .tp-handle,
-.tp-bar.tp-in-native .tp-command {
-  height: var(--tp-height) !important;
-  min-height: var(--tp-height) !important;
-  max-height: var(--tp-height) !important;
+.tp-bar.tp-keyboard-entering {
+  animation: tp-keyboard-rise 380ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  transition: none;
 }
-.tp-bar.tp-in-native .tp-handle-slot,
-.tp-bar.tp-in-native .tp-handle {
+.tp-bar.tp-keyboard-entering,
+.tp-bar.tp-keyboard-entering .tp-handle {
+  pointer-events: none;
+}
+@keyframes tp-keyboard-rise {
+  from {
+    transform: translateY(var(--tp-keyboard-travel));
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native .tp-commands,
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native .tp-handle-slot,
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native .tp-handle,
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native button.tp-command {
+  height: var(--tp-height);
+  min-height: var(--tp-height);
+  max-height: var(--tp-height);
+}
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native .tp-handle-slot,
+.mobile-toolbar.tp-native-replaced .tp-bar.tp-in-native button.tp-handle {
   flex-basis: var(--tp-height);
   width: var(--tp-height);
   min-width: var(--tp-height);
   max-width: var(--tp-height);
 }
 @media (prefers-reduced-motion: reduce) {
+  .tp-bar.tp-keyboard-entering {
+    animation: none;
+    visibility: hidden;
+  }
   .tp-bar {
     transition: none;
   }
@@ -89,7 +109,7 @@
   box-shadow: var(--tp-shadow);
   box-sizing: border-box;
 }
-.tp-command {
+.tp-bar button.tp-command {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -97,14 +117,14 @@
   width: var(--tp-button-size);
   height: 100%;
   padding: 8px;
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
   color: var(--tp-foreground);
   border: 0;
 }
-.tp-command:hover {
+.tp-bar button.tp-command:hover {
   color: var(--text-normal);
-  background: var(--background-modifier-hover) !important;
+  background: var(--background-modifier-hover);
 }
 .tp-handle-slot {
   display: flex;
@@ -114,7 +134,7 @@
   width: var(--tp-size);
   height: var(--tp-size);
 }
-.tp-handle {
+.tp-bar button.tp-handle {
   display: grid;
   grid-template-columns: repeat(3, 4px);
   grid-template-rows: repeat(3, 4px);
@@ -127,9 +147,9 @@
   padding: 0;
   border-radius: 50%;
   border: 1px solid var(--tp-border);
-  background: var(--tp-surface) !important;
+  background: var(--tp-surface);
   color: var(--tp-foreground);
-  box-shadow: var(--tp-shadow) !important;
+  box-shadow: var(--tp-shadow);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -151,7 +171,7 @@
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
-.tp-pressed .tp-handle {
+.tp-pressed .tp-bar button.tp-handle {
   color: var(--text-accent);
   border-color: var(--interactive-accent);
 }
@@ -168,30 +188,33 @@
   --tp-size: 48px;
   --tp-button-size: 40px;
 }
-.tp-floating .tp-handle,
-.tp-moving .tp-handle {
+.tp-floating .tp-bar button.tp-handle,
+.tp-moving .tp-bar button.tp-handle {
   border-radius: 50%;
-  background: var(--tp-surface) !important;
+  background: var(--tp-surface);
 }
 .tp-floating .tp-commands {
   display: none;
 }
-.tp-floating .tp-handle,
-.tp-moving .tp-handle {
+.tp-floating .tp-bar button.tp-handle,
+.tp-moving .tp-bar button.tp-handle {
   position: fixed;
 }
 .tp-floating .tp-handle-slot,
 .tp-moving .tp-handle-slot {
-  display: contents;
+  position: absolute;
+  width: 0;
+  height: 0;
+  flex: 0 0 0;
 }
-.tp-moving .tp-handle {
+.tp-moving .tp-bar button.tp-handle {
   cursor: grabbing;
-  box-shadow: 0 8px 24px #0005 !important;
+  box-shadow: 0 8px 24px #0005;
 }
 .tp-moving .tp-bar {
   visibility: hidden;
 }
-.tp-moving .tp-handle {
+.tp-moving .tp-bar button.tp-handle {
   visibility: visible;
 }
 .tp-dock-target {
@@ -274,19 +297,18 @@
   color: var(--text-on-accent);
   background: var(--interactive-accent);
 }
-.tp-native-replaced > :not(.tp-bar):not(.tp-dock-target) {
-  display: none !important;
+body .mobile-toolbar.tp-native-replaced > :not(.tp-bar):not(.tp-dock-target) {
+  display: none;
 }
-.mobile-toolbar.tp-native-collapsed,
-html.tp-mobile-toolbar-collapsed .mobile-toolbar,
-html.tp-mobile-toolbar-collapsed .mobile-toolbar-spacer,
-body:has(.toolbar-plus[data-tp-host-state="floating"]) .mobile-toolbar {
-  display: none !important;
-  flex: 0 0 0 !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
+body .mobile-toolbar.tp-native-collapsed,
+html.tp-mobile-toolbar-collapsed body .mobile-toolbar,
+html.tp-mobile-toolbar-collapsed body .mobile-toolbar-spacer {
+  display: none;
+  flex: 0 0 0;
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
 }
 /*
  * Obsidian's iOS keyboard layout keeps one native toolbar row reserved in the
@@ -305,7 +327,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   height: 1px;
   padding: 0;
   overflow: hidden;
-  clip-path: inset(50%);
+  opacity: 0;
   white-space: nowrap;
 }
 .tp-config-modal {
@@ -314,6 +336,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   min-width: 0;
   max-width: calc(100vw - 20px);
 }
+
 .tp-config-modal .modal-content {
   min-width: 0;
   overflow-x: hidden;
@@ -340,27 +363,27 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
     var(--background-secondary)
   );
 }
-.tp-tab {
+.tp-command-editor button.tp-tab {
   height: 34px;
   padding: 0 10px;
   border: 0;
   border-radius: 8px;
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
   color: var(--text-muted);
-  font-size: 13px !important;
+  font-size: 13px;
 }
-.tp-tab[aria-selected="true"] {
-  background: var(--background-modifier-hover) !important;
+.tp-command-editor button.tp-tab[aria-selected="true"] {
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 .tp-command-panel {
   min-width: 0;
 }
-.tp-panel-hint {
+.tp-command-editor .tp-panel-hint {
   margin: 0 1px 8px;
   color: var(--text-muted);
-  font-size: 12px !important;
+  font-size: 12px;
   line-height: 1.3;
 }
 .tp-docked-list {
@@ -380,13 +403,13 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
 .tp-docked-binding:last-child {
   border-bottom: 0;
 }
-.tp-icon-button {
+.tp-command-editor button.tp-icon-button {
   flex: 0 0 28px;
   width: 28px;
   height: 28px;
   padding: 5px;
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
   color: var(--text-muted);
   border: 0;
 }
@@ -401,31 +424,31 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
 }
-.tp-icon-button:hover {
+.tp-command-editor button.tp-icon-button:hover {
   color: var(--text-normal);
-  background: var(--background-modifier-hover) !important;
+  background: var(--background-modifier-hover);
 }
-.tp-command-name {
+.tp-command-editor button.tp-command-name {
   flex: 1 1 auto;
   min-width: 0;
   height: 30px;
   padding: 0 5px;
   overflow: hidden;
   border: 0;
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
   color: var(--text-normal);
-  font-size: 13px !important;
+  font-size: 13px;
   line-height: 1.2;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tp-add-command {
+.tp-command-editor button.tp-add-command {
   width: 100%;
   height: 34px;
   margin-top: 8px;
-  font-size: 13px !important;
+  font-size: 13px;
 }
 .tp-intro {
   color: var(--text-muted);
@@ -433,7 +456,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   font-size: var(--font-ui-smaller);
   line-height: 1.35;
 }
-.tp-plugin-settings h3 {
+.tp-plugin-settings .setting-group-heading {
   margin: 18px 0 0;
   padding-bottom: 5px;
   border-bottom: 1px solid var(--background-modifier-border);
@@ -444,7 +467,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   line-height: 1.2;
   text-transform: uppercase;
 }
-.tp-plugin-settings.tp-settings > .setting-item {
+.tp-plugin-settings.tp-settings .setting-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -485,11 +508,8 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   padding: 3px 10px;
   font-size: 12px;
 }
-.tp-plugin-settings .tp-slider-setting .setting-item-control {
+.tp-plugin-settings input[type="range"] {
   width: min(150px, 34vw);
-}
-.tp-plugin-settings .tp-slider-setting input[type="range"] {
-  width: 100%;
 }
 .tp-binding-grid {
   display: grid;
@@ -505,7 +525,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   border-radius: 9px;
   min-width: 0;
 }
-.tp-binding-cell > button:first-child {
+.tp-command-editor .tp-binding-cell > button:first-child {
   white-space: normal;
   overflow-wrap: anywhere;
   height: auto;
@@ -514,7 +534,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   padding: 5px 18px 5px 5px;
   background: transparent;
   box-shadow: none;
-  font-size: 12px !important;
+  font-size: 12px;
   line-height: 1.15;
 }
 .tp-binding-cell .tp-clear {
@@ -537,7 +557,7 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
   color: var(--text-faint);
 }
 @media (max-width: 480px) {
-  .tp-plugin-settings.tp-settings > .setting-item {
+  .tp-plugin-settings.tp-settings .setting-item {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 10px;
     padding: 8px 0;
@@ -552,6 +572,6 @@ html.tp-mobile-toolbar-collapsed.tp-mobile-keyboard-open
 }
 @media (prefers-reduced-motion: reduce) {
   .toolbar-plus * {
-    transition: none !important;
+    transition: none;
   }
 }

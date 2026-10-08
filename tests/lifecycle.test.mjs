@@ -42,6 +42,13 @@ function harness(options = {}) {
   proto.setText = function (s) {
     this.textContent = s;
   };
+  proto.setCssProps = function (props) {
+    for (const [key, value] of Object.entries(props))
+      this.style.setProperty(key, value);
+  };
+  proto.setCssStyles = function (styles) {
+    Object.assign(this.style, styles);
+  };
   proto.setPointerCapture = function (id) {
     this.capture = id;
   };
@@ -126,6 +133,10 @@ function harness(options = {}) {
     MarkdownView: class {},
     PluginSettingTab: class {
       containerEl = w.document.createElement("div");
+      updates = 0;
+      update() {
+        this.updates++;
+      }
     },
     Modal,
     FuzzySuggestModal: class extends Modal {
@@ -152,10 +163,9 @@ function harness(options = {}) {
     MutationObserver: w.MutationObserver,
     Element: w.Element,
     ResizeObserver: options.ResizeObserver,
-    requestAnimationFrame: w.requestAnimationFrame.bind(w),
-    cancelAnimationFrame: w.cancelAnimationFrame.bind(w),
+
     getComputedStyle: w.getComputedStyle.bind(w),
-    clearTimeout: w.clearTimeout.bind(w),
+
     console: { ...console, error: (...args) => errors.push(args) },
   };
   ctx.exports = ctx.module.exports;
@@ -870,7 +880,7 @@ test("iOS keyboard hide suppresses docked toolbar even while the native open mar
   assert.equal(native.isConnected, false);
   assert.equal(spacer.isConnected, false);
 
-  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
   doc.documentElement.style.setProperty("--keyboard-height", "300px");
   doc.body.append(spacer, native);
   await h.settle();
@@ -879,14 +889,14 @@ test("iOS keyboard hide suppresses docked toolbar even while the native open mar
   h.end();
 });
 
-test("docked keyboard events hide and show the bar without body-class changes", async () => {
+test("docked keyboard completion shows the bar without body-class changes", async () => {
   const h = harness();
   await h.start();
   h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
   await h.settle();
   assert.equal(h.p.root.hidden, true);
   assert.equal(h.w.document.querySelector(".mobile-toolbar"), null);
-  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
   await h.settle();
   assert.equal(h.p.root.hidden, false);
   h.end();
@@ -931,4 +941,320 @@ test("production styles honor the hidden attribute on a reparented toolbar", () 
     "none",
   );
   dom.window.close();
+});
+
+test("declarative settings expose every control to search and save through plugin config", async () => {
+  const h = harness({ mobile: false });
+  await h.start();
+  const tab = h.settingTab;
+  const definitions = Array.from(tab.getSettingDefinitions()).flatMap((group) =>
+    Array.from(group.items),
+  );
+  assert.deepEqual(
+    definitions.map((item) => item.name),
+    [
+      "Command layouts",
+      "Control position",
+      "Gesture grid",
+      "Haptic feedback",
+      "Show on desktop",
+      "Hold to move",
+      "Gesture distance",
+    ],
+  );
+  assert.ok(definitions.every((item) => item.searchable !== false));
+  for (const [key, value] of [
+    ["showGrid", false],
+    ["haptics", false],
+    ["desktop", false],
+    ["holdMs", 750],
+    ["threshold", 46],
+  ]) {
+    tab.setControlValue(key, value);
+    assert.equal(tab.getControlValue(key), value);
+    assert.equal(h.p.config[key], value);
+  }
+  assert.equal(
+    h.p.root.hidden,
+    true,
+    "desktop setting immediately refreshes visibility",
+  );
+  await h.settle();
+  assert.equal(h.saves.at(-1).holdMs, 750);
+  assert.equal(h.saves.at(-1).threshold, 46);
+  const before = JSON.stringify(h.p.config);
+  tab.setControlValue("desktop", "true");
+  tab.setControlValue("holdMs", NaN);
+  tab.setControlValue("position", { x: 0, y: 0 });
+  assert.equal(JSON.stringify(h.p.config), before);
+  tab.setControlValue("holdMs", 5000);
+  tab.setControlValue("threshold", 0);
+  assert.equal(h.p.config.holdMs, 1200);
+  assert.equal(h.p.config.threshold, 16);
+  const slider = definitions.find((item) => item.control?.key === "holdMs");
+  assert.equal(slider.control.displayFormat(750), "750 ms");
+  h.end();
+});
+
+test("searchable command settings open the command editor and update dock or float label", async () => {
+  const h = harness();
+  await h.start();
+  const tab = h.settingTab;
+  const items = Array.from(tab.getSettingDefinitions()[0].items);
+  let label, click;
+  const setting = {
+    addButton(render) {
+      const button = {
+        setButtonText(text) {
+          label = text;
+          return button;
+        },
+        onClick(callback) {
+          click = callback;
+          return button;
+        },
+      };
+      render(button);
+    },
+  };
+  items[1].render(setting);
+  assert.equal(label, "Float control");
+  click();
+  assert.equal(h.p.config.mode, "floating");
+  assert.equal(tab.updates, 1);
+  items[1].render(setting);
+  assert.equal(label, "Dock control");
+  click();
+  assert.equal(h.p.config.mode, "docked");
+  items[0].render(setting);
+  assert.equal(label, "Edit commands");
+  click();
+  assert.equal(h.p.modals.size, 1);
+  h.end();
+});
+
+test("docked toolbar stays hidden through keyboard opening despite early height and host updates", async () => {
+  const h = harness();
+  const doc = h.w.document;
+  const native = doc.querySelector(".mobile-toolbar");
+  const spacer = doc.createElement("div");
+  spacer.className = "mobile-toolbar-spacer";
+  doc.body.insertBefore(spacer, native);
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  doc.documentElement.style.setProperty("--keyboard-height", "0px");
+  await h.settle();
+  assert.equal(h.p.bar.hidden, true);
+
+  // The host can publish its final height and reinsert the toolbar before
+  // the OS keyboard animation finishes. Neither is a completion signal.
+  doc.documentElement.style.setProperty("--keyboard-height", "300px");
+  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  doc.body.append(spacer, native);
+  await h.settle();
+  assert.equal(
+    h.p.bar.hidden,
+    true,
+    "will-show must not reveal the docked bar",
+  );
+  assert.equal(
+    native.isConnected,
+    false,
+    "will-show must not restore the native row",
+  );
+  assert.equal(spacer.isConnected, false);
+  h.p.layout();
+  assert.equal(
+    h.p.bar.hidden,
+    true,
+    "an unrelated layout cannot bypass opening",
+  );
+
+  h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
+  await h.settle();
+  assert.equal(h.p.bar.hidden, false);
+  assert.equal(h.p.bar.parentElement, native);
+  assert.equal(native.isConnected, true);
+  assert.equal(spacer.isConnected, true);
+  h.end();
+});
+
+test("a cancelled keyboard opening cannot reveal a hidden docked toolbar", async () => {
+  const h = harness();
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  assert.equal(h.p.bar.hidden, true);
+  assert.equal(h.w.document.querySelector(".mobile-toolbar"), null);
+  h.end();
+});
+
+test("keyboard frame changes while already open do not hide the docked toolbar", async () => {
+  const h = harness();
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillShow"));
+  await h.settle();
+  assert.equal(h.p.bar.hidden, false);
+  assert.equal(
+    h.p.bar.parentElement.classList.contains("mobile-toolbar"),
+    true,
+  );
+  h.end();
+});
+
+test("docked keyboard entrance slides in the overlay without restoring native rows before completion", async () => {
+  const h = harness();
+  const doc = h.w.document;
+  Object.defineProperty(h.w, "innerHeight", { value: 700, configurable: true });
+  const viewport = {
+    width: 390,
+    height: 700,
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  Object.defineProperty(h.w, "visualViewport", {
+    value: viewport,
+    configurable: true,
+  });
+  const native = doc.querySelector(".mobile-toolbar");
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  const before = JSON.stringify(h.p.config);
+  const opening = new h.w.Event("keyboardWillShow");
+  opening.keyboardHeight = 300;
+  h.w.dispatchEvent(opening);
+  await h.settle();
+  assert.equal(h.p.bar.hidden, false);
+  assert.equal(h.p.bar.parentElement, h.p.root);
+  assert.equal(h.p.bar.classList.contains("tp-keyboard-entering"), true);
+  assert.equal(native.isConnected, false);
+  assert.equal(h.p.root.style.getPropertyValue("--tp-top"), "358px");
+  assert.equal(h.p.bar.style.getPropertyValue("--tp-keyboard-travel"), "342px");
+  viewport.height = 400;
+  h.p.layout();
+  assert.equal(
+    h.p.root.style.getPropertyValue("--tp-top"),
+    "358px",
+    "viewport changes cannot jump the animation target",
+  );
+  h.event("pointerdown");
+  assert.equal(
+    h.p.interaction,
+    undefined,
+    "the moving bar cannot start a gesture",
+  );
+  assert.equal(JSON.stringify(h.p.config), before);
+  h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
+  await h.settle();
+  assert.equal(h.p.bar.parentElement, native);
+  assert.equal(h.p.bar.classList.contains("tp-keyboard-entering"), false);
+  assert.equal(h.p.keyboardEntrance, undefined);
+  h.end();
+});
+
+test("iOS entrance starts before the native host exists and keeps a late host suppressed until did-show", async () => {
+  const h = harness();
+  const doc = h.w.document;
+  doc.querySelector(".mobile-toolbar").remove();
+  Object.defineProperty(h.w, "innerHeight", { value: 852, configurable: true });
+  await h.start();
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  assert.equal(h.p.host.hasNativeHost, false);
+  assert.equal(h.p.bar.hidden, true);
+  doc.documentElement.style.setProperty("--keyboard-height", "308px");
+  const opening = new h.w.Event("keyboardWillShow");
+  opening.keyboardHeight = 308;
+  h.w.dispatchEvent(opening);
+  await h.settle();
+  assert.equal(
+    h.p.bar.hidden,
+    false,
+    "missing native rows must not skip the slide",
+  );
+  assert.equal(h.p.bar.parentElement, h.p.root);
+  assert.equal(h.p.bar.classList.contains("tp-keyboard-entering"), true);
+  assert.equal(h.p.root.style.getPropertyValue("--tp-top"), "502px");
+  assert.equal(h.p.bar.style.getPropertyValue("--tp-keyboard-travel"), "350px");
+  const native = doc.createElement("div");
+  native.className = "mobile-toolbar";
+  doc.body.append(native);
+  h.p.layout();
+  assert.equal(
+    native.isConnected,
+    false,
+    "late native rows remain suppressed during the slide",
+  );
+  assert.equal(h.p.bar.parentElement, h.p.root);
+  assert.equal(h.p.bar.classList.contains("tp-keyboard-entering"), true);
+  h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
+  await h.settle();
+  assert.equal(native.isConnected, true);
+  assert.equal(h.p.bar.parentElement, native);
+  assert.equal(h.p.bar.hidden, false);
+  assert.equal(h.p.keyboardEntrance, undefined);
+  h.end();
+});
+
+test("keyboard slide is cancelled by hiding, floating, configuration, or unload", async () => {
+  for (const action of ["hide", "float", "configure", "unload"]) {
+    const h = harness();
+    await h.start();
+    h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+    await h.settle();
+    const opening = new h.w.Event("keyboardWillShow");
+    opening.keyboardHeight = 300;
+    h.w.dispatchEvent(opening);
+    await h.settle();
+    assert.ok(h.p.keyboardEntrance);
+    if (action === "hide") h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+    if (action === "float") h.p.setMode("floating");
+    if (action === "configure") h.p.configure();
+    if (action === "unload") h.p.onunload();
+    await h.settle();
+    assert.equal(h.p.keyboardEntrance, undefined, action);
+    assert.equal(
+      h.p.bar.classList.contains("tp-keyboard-entering"),
+      false,
+      action,
+    );
+    if (action === "hide") assert.equal(h.p.bar.hidden, true);
+    if (action === "float") assert.equal(h.p.root.hidden, false);
+    h.end();
+  }
+});
+
+test("invalid keyboard heights retain completion-based docking and floating mode never slides", async () => {
+  for (const height of [undefined, 0, -10, NaN, Infinity, "300"]) {
+    const h = harness();
+    await h.start();
+    h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+    await h.settle();
+    const opening = new h.w.Event("keyboardWillShow");
+    opening.keyboardHeight = height;
+    h.w.dispatchEvent(opening);
+    await h.settle();
+    assert.equal(h.p.keyboardEntrance, undefined);
+    assert.equal(h.p.bar.hidden, true);
+    h.w.dispatchEvent(new h.w.Event("keyboardDidShow"));
+    await h.settle();
+    assert.equal(h.p.bar.hidden, false);
+    h.end();
+  }
+  const h = harness();
+  await h.start();
+  h.p.setMode("floating");
+  h.w.dispatchEvent(new h.w.Event("keyboardWillHide"));
+  await h.settle();
+  const opening = new h.w.Event("keyboardWillShow");
+  opening.keyboardHeight = 300;
+  h.w.dispatchEvent(opening);
+  await h.settle();
+  assert.equal(h.p.keyboardEntrance, undefined);
+  assert.equal(h.p.bar.classList.contains("tp-keyboard-entering"), false);
+  h.end();
 });

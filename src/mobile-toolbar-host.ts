@@ -84,6 +84,14 @@ export class MobileToolbarHost {
     this.keyboardVisible = visible;
   }
 
+  beginKeyboardShow() {
+    // The native host and final height can arrive before the keyboard finishes
+    // rising. A hidden docked row must wait for keyboardDidShow. An already
+    // open keyboard may emit will-show again for a frame/height change.
+    if (this.state === "hidden" || !this.nativeToolbarOpen)
+      this.keyboardVisible = false;
+  }
+
   get currentState() {
     return this.state;
   }
@@ -208,7 +216,12 @@ export class MobileToolbarHost {
   }
 
   private detach(element: HTMLElement) {
-    if (this.isDetached(element)) return;
+    if (this.isDetached(element)) {
+      // Obsidian can reattach a row during keyboard opening before our saved
+      // ownership entry is restored. Keep it suppressed until completion.
+      element.remove();
+      return;
+    }
     const parent = element.parentNode;
     if (!parent) return;
     this.detachedElements.push({

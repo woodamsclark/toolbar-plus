@@ -13,7 +13,7 @@ import {
   Setting,
   setIcon,
 } from "obsidian";
-import type { Editor } from "obsidian";
+import type { Editor, SettingDefinitionItem } from "obsidian";
 import { InsertAliasController, INVALID_ALIAS_MESSAGE } from "./insert-alias";
 import {
   arrows,
@@ -156,6 +156,7 @@ export default class ToolbarPlus extends Plugin {
   private status!: HTMLElement;
   private interaction?: Interaction;
   private host?: MobileToolbarHost;
+  private keyboardEntrance?: { top: number; travel: number };
   private frame = 0;
   private disposed = false;
   private ready = false;
@@ -308,12 +309,39 @@ export default class ToolbarPlus extends Plugin {
     });
     this.ui.registerDomEvent(window, "blur", () => this.cancel());
     if (Platform.isMobile) {
+      const beginKeyboardShow = (event: Event) => {
+        this.host?.beginKeyboardShow();
+        this.cancel();
+        const height = (event as Event & { keyboardHeight?: number })
+          .keyboardHeight;
+        if (
+          !this.keyboardEntrance &&
+          this.bar.hidden &&
+          !this.suspended &&
+          this.config.mode === "docked" &&
+          document.body.classList.contains("mod-toolbar-open") &&
+          typeof height === "number" &&
+          Number.isFinite(height) &&
+          height > 0
+        ) {
+          const closedHeight = this.placementSize().height;
+          const barHeight =
+            parseFloat(
+              getComputedStyle(this.bar).getPropertyValue("--tp-height"),
+            ) || 42;
+          const top = Math.max(0, closedHeight - height - barHeight);
+          this.keyboardEntrance = { top, travel: closedHeight - top };
+        }
+        this.scheduleKeyboardLayout();
+      };
       const showKeyboard = () => {
+        this.clearKeyboardEntrance();
         this.host?.setKeyboardVisible(true);
         this.cancel();
         this.scheduleKeyboardLayout();
       };
       const hideKeyboard = (event: Event) => {
+        this.clearKeyboardEntrance();
         const physicalKeyboard =
           (event as Event & { hasPhysicalKeyboard?: boolean })
             .hasPhysicalKeyboard === true;
@@ -322,10 +350,12 @@ export default class ToolbarPlus extends Plugin {
         this.scheduleKeyboardLayout();
       };
       // Native mobile events are not part of TypeScript's WindowEventMap.
-      window.addEventListener("keyboardWillShow", showKeyboard);
+      window.addEventListener("keyboardWillShow", beginKeyboardShow);
+      window.addEventListener("keyboardDidShow", showKeyboard);
       window.addEventListener("keyboardWillHide", hideKeyboard);
       this.ui.register(() => {
-        window.removeEventListener("keyboardWillShow", showKeyboard);
+        window.removeEventListener("keyboardWillShow", beginKeyboardShow);
+        window.removeEventListener("keyboardDidShow", showKeyboard);
         window.removeEventListener("keyboardWillHide", hideKeyboard);
       });
     }
@@ -419,13 +449,17 @@ export default class ToolbarPlus extends Plugin {
   private scheduleLayout() {
     if (this.disposed || !this.ready) return;
     if (!this.frame)
-      this.frame = requestAnimationFrame(() => {
+      this.frame = window.requestAnimationFrame(() => {
         this.frame = 0;
         this.layout();
       });
   }
   private scheduleKeyboardLayout() {
     this.scheduleLayout();
+  }
+  private clearKeyboardEntrance() {
+    this.keyboardEntrance = undefined;
+    this.bar?.removeClass("tp-keyboard-entering");
   }
   private layout() {
     if (this.disposed || !this.ready) return;
@@ -437,11 +471,16 @@ export default class ToolbarPlus extends Plugin {
     const dockedVisible = Platform.isMobile
       ? nativeAvailable && nativeToolbarOpen
       : this.config.desktop && !!active;
+    const entering =
+      Platform.isMobile &&
+      !this.suspended &&
+      this.config.mode === "docked" &&
+      !!this.keyboardEntrance;
     const visible =
       !this.suspended &&
       (Platform.isMobile || this.config.desktop) &&
       (this.config.mode === "floating" ||
-        (this.config.mode === "docked" && dockedVisible));
+        (this.config.mode === "docked" && (dockedVisible || entering)));
     if (!visible && this.interaction) this.finish();
     this.root.hidden = !visible;
     this.bar.hidden = !visible;
@@ -462,10 +501,17 @@ export default class ToolbarPlus extends Plugin {
       getComputedStyle(this.bar).getPropertyValue("--tp-height"),
     );
     const { top, targetTop } = toolbarPositions(b, configuredHeight);
-    this.root.style.setProperty("--tp-left", "0px");
-    this.root.style.setProperty("--tp-width", `${b.width}px`);
-    this.root.style.setProperty("--tp-top", `${top}px`);
-    this.root.style.setProperty("--tp-target-top", `${targetTop}px`);
+    this.root.setCssProps({
+      "--tp-left": "0px",
+      "--tp-width": `${b.width}px`,
+      "--tp-top": `${entering ? this.keyboardEntrance!.top : top}px`,
+      "--tp-target-top": `${targetTop}px`,
+    });
+    if (entering)
+      this.bar.setCssProps({
+        "--tp-keyboard-travel": `${this.keyboardEntrance!.travel}px`,
+      });
+    this.bar.toggleClass("tp-keyboard-entering", entering);
     if (!this.interaction || this.interaction.kind !== "moving") {
       const placement = this.placementSize(b);
       const point = pointFromNormalized(this.config.position, placement);
@@ -483,8 +529,7 @@ export default class ToolbarPlus extends Plugin {
       top: inset("top"),
       bottom: inset("bottom"),
     });
-    this.handle.style.left = `${point.x}px`;
-    this.handle.style.top = `${point.y}px`;
+    this.handle.setCssStyles({ left: `${point.x}px`, top: `${point.y}px` });
   }
   refresh() {
     if (this.disposed || !this.ready) return;
@@ -565,6 +610,7 @@ export default class ToolbarPlus extends Plugin {
     if (
       this.disposed ||
       !this.ready ||
+      this.keyboardEntrance ||
       this.root.hidden ||
       e.button !== 0 ||
       !e.isPrimary ||
@@ -628,7 +674,7 @@ export default class ToolbarPlus extends Plugin {
     const dx = e.clientX - i.x,
       dy = e.clientY - i.y;
     if (i.kind === "pending" && Math.hypot(dx, dy) > 10) {
-      clearTimeout(i.timer);
+      window.clearTimeout(i.timer);
       i.kind = this.config.mode === "floating" ? "gesture" : "keyboard";
     }
     if (i.kind === "moving") {
@@ -657,10 +703,12 @@ export default class ToolbarPlus extends Plugin {
     this.root.toggleClass("tp-gesturing", this.config.showGrid);
     const b = this.bounds(),
       size = Math.max(1, Math.min(252, b.width - 16, b.height - 16));
-    this.grid.style.width = `${size}px`;
-    this.grid.style.height = `${size}px`;
-    this.grid.style.left = `${clamp(i.x - size / 2, b.left + 8, b.left + b.width - size - 8)}px`;
-    this.grid.style.top = `${clamp(i.y - size / 2, b.top + 8, b.top + b.height - size - 8)}px`;
+    this.grid.setCssStyles({
+      width: `${size}px`,
+      height: `${size}px`,
+      left: `${clamp(i.x - size / 2, b.left + 8, b.left + b.width - size - 8)}px`,
+      top: `${clamp(i.y - size / 2, b.top + 8, b.top + b.height - size - 8)}px`,
+    });
     if (dir !== i.direction) {
       i.direction = dir;
       if (dir) this.tick();
@@ -730,7 +778,7 @@ export default class ToolbarPlus extends Plugin {
   private finish() {
     const i = this.interaction;
     if (!i) return;
-    clearTimeout(i.timer);
+    window.clearTimeout(i.timer);
     this.interaction = undefined;
     try {
       if (this.handle.hasPointerCapture(i.id))
@@ -758,6 +806,7 @@ export default class ToolbarPlus extends Plugin {
     this.layout();
   }
   setMode(mode: Config["mode"]) {
+    this.clearKeyboardEntrance();
     this.cancel();
     this.config.mode = mode;
     this.persist();
@@ -765,6 +814,7 @@ export default class ToolbarPlus extends Plugin {
   }
   configure() {
     if (this.disposed || this.modals.size) return;
+    this.clearKeyboardEntrance();
     const modal = new ConfigModal(this.app, this);
     this.modals.add(modal);
     this.suspended++;
@@ -800,10 +850,11 @@ export default class ToolbarPlus extends Plugin {
     this.refresh();
   }
   private cleanupUi() {
+    this.clearKeyboardEntrance();
     this.ready = false;
     this.finish();
     this.ui.unload();
-    cancelAnimationFrame(this.frame);
+    window.cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.host?.dispose();
     this.host = undefined;
@@ -850,8 +901,126 @@ class ToolbarSettings extends PluginSettingTab {
   ) {
     super(app, plugin);
   }
-  display() {
-    renderPluginSettings(this.containerEl, this.plugin);
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    const p = this.plugin;
+    return [
+      {
+        type: "group",
+        cls: "tp-settings tp-plugin-settings",
+        items: [
+          {
+            name: "Command layouts",
+            desc: "Edit commands from the tactile control.",
+            aliases: ["docked buttons", "floating gestures"],
+            render: (setting) => {
+              setting.addButton((button) =>
+                button
+                  .setButtonText("Edit commands")
+                  .onClick(() => p.configure()),
+              );
+            },
+          },
+          {
+            name: "Control position",
+            desc: "Switch between the docked toolbar and floating gesture control.",
+            aliases: ["dock", "float"],
+            render: (setting) => {
+              setting.addButton((button) =>
+                button
+                  .setButtonText(
+                    p.config.mode === "docked"
+                      ? "Float control"
+                      : "Dock control",
+                  )
+                  .onClick(() => {
+                    p.setMode(
+                      p.config.mode === "docked" ? "floating" : "docked",
+                    );
+                    this.update();
+                  }),
+              );
+            },
+          },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Behavior",
+        cls: "tp-settings tp-plugin-settings",
+        items: [
+          {
+            name: "Gesture grid",
+            desc: "Show command directions while swiping.",
+            control: { type: "toggle", key: "showGrid" },
+          },
+          {
+            name: "Haptic feedback",
+            desc: "Vibrate on a selection or long press.",
+            control: { type: "toggle", key: "haptics" },
+          },
+          {
+            name: "Show on desktop",
+            desc: "Use toolbar+ with a mouse or trackpad.",
+            control: { type: "toggle", key: "desktop" },
+          },
+          {
+            name: "Hold to move",
+            desc: "Long-press delay, in milliseconds.",
+            control: {
+              type: "slider",
+              key: "holdMs",
+              min: 300,
+              max: 1200,
+              step: 50,
+              displayFormat: (value) => `${value} ms`,
+            },
+          },
+          {
+            name: "Gesture distance",
+            desc: "Swipe distance needed to select a command.",
+            control: {
+              type: "slider",
+              key: "threshold",
+              min: 16,
+              max: 80,
+              step: 2,
+              displayFormat: (value) => `${value} px`,
+            },
+          },
+        ],
+      },
+    ];
+  }
+  getControlValue(key: string): unknown {
+    switch (key) {
+      case "showGrid":
+      case "haptics":
+      case "desktop":
+      case "holdMs":
+      case "threshold":
+        return this.plugin.config[key];
+    }
+  }
+  setControlValue(key: string, value: unknown): void {
+    const p = this.plugin;
+    switch (key) {
+      case "showGrid":
+      case "haptics":
+      case "desktop":
+        if (typeof value !== "boolean") return;
+        p.config[key] = value;
+        break;
+      case "holdMs":
+      case "threshold":
+        if (typeof value !== "number" || !Number.isFinite(value)) return;
+        p.config[key] =
+          key === "holdMs" ? clamp(value, 300, 1200) : clamp(value, 16, 80);
+        break;
+      default:
+        return;
+    }
+    p.persist();
+    if (key === "desktop") p.refresh();
   }
 }
 
@@ -1062,88 +1231,4 @@ function renderCommandModal(
       changed();
     });
   };
-}
-
-function renderPluginSettings(el: HTMLElement, p: ToolbarPlus) {
-  el.empty();
-  el.addClass("tp-settings", "tp-plugin-settings");
-  el.createEl("p", {
-    cls: "tp-intro",
-    text: "Edit commands from the tactile control. Adjust general behavior here.",
-  });
-  new Setting(el)
-    .setName("Command layouts")
-    .addButton((button) =>
-      button.setButtonText("Edit commands").onClick(() => p.configure()),
-    );
-  new Setting(el)
-    .setName("Control position")
-    .setDesc("Switch between the docked toolbar and floating gesture control.")
-    .addButton((b) =>
-      b
-        .setButtonText(
-          p.config.mode === "docked" ? "Float control" : "Dock control",
-        )
-        .onClick(() => {
-          p.setMode(p.config.mode === "docked" ? "floating" : "docked");
-          renderPluginSettings(el, p);
-        }),
-    );
-  el.createEl("h3", { text: "Behavior" });
-  new Setting(el)
-    .setName("Gesture grid")
-    .setDesc("Show command directions while swiping.")
-    .addToggle((t) =>
-      t.setValue(p.config.showGrid).onChange((v) => {
-        p.config.showGrid = v;
-        p.persist();
-      }),
-    );
-  new Setting(el)
-    .setName("Haptic feedback")
-    .setDesc("Vibrate on a selection or long press.")
-    .addToggle((t) =>
-      t.setValue(p.config.haptics).onChange((v) => {
-        p.config.haptics = v;
-        p.persist();
-      }),
-    );
-  new Setting(el)
-    .setName("Show on desktop")
-    .setDesc("Use toolbar+ with a mouse or trackpad.")
-    .addToggle((t) =>
-      t.setValue(p.config.desktop).onChange((v) => {
-        p.config.desktop = v;
-        p.persist();
-        p.refresh();
-      }),
-    );
-  const holdSetting = new Setting(el)
-    .setName("Hold to move")
-    .setDesc("Long-press delay, in milliseconds.")
-    .addSlider((s) =>
-      s
-        .setLimits(300, 1200, 50)
-        .setValue(p.config.holdMs)
-        .setDynamicTooltip()
-        .onChange((v) => {
-          p.config.holdMs = v;
-          p.persist();
-        }),
-    );
-  holdSetting.settingEl.addClass("tp-slider-setting");
-  const distanceSetting = new Setting(el)
-    .setName("Gesture distance")
-    .setDesc("Swipe distance needed to select a command.")
-    .addSlider((s) =>
-      s
-        .setLimits(16, 80, 2)
-        .setValue(p.config.threshold)
-        .setDynamicTooltip()
-        .onChange((v) => {
-          p.config.threshold = v;
-          p.persist();
-        }),
-    );
-  distanceSetting.settingEl.addClass("tp-slider-setting");
 }
